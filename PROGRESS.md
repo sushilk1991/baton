@@ -1,69 +1,60 @@
 # Progress
 
-Shipped locally: fourteen of seventeen TASKS.md items, through Docs.
-Docs implementation: b1cc100. SPEC.md is unchanged. No runtime Go code or
-existing test assertion changed. No push, tag, release, or remote change.
-The overall goal remains incomplete.
+Shipped locally: fifteen of seventeen TASKS.md items, through Distribution.
+Distribution implementation: f5cf46d. Only Distribution was completed this
+iteration. SPEC.md is unchanged. No push, tag, release, or repository remote
+change was made. The overall goal remains incomplete.
 
 Verified: native `make check` and
 `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
-Both passed vet, race tests, and five cgo-free cross-builds. golangci-lint
-was unavailable and skipped. Native Go was 1.27.0 on darwin/arm64.
+Both passed vet, race tests, and all five cgo-free cross-builds.
+golangci-lint was unavailable and skipped. Native Go was 1.27.0 darwin/arm64.
 
-README now has source installation, a bounded quick start, lane behavior,
-recipes, a primary-source comparison, FAQ, and reversible uninstall steps.
-Release install commands are explicitly preparatory. Reference docs cover
-configuration, shims, cache, observation, cleanup, and workload recipes.
-Community files and GitHub issue/PR templates are present. Architecture
-records the documentation decisions. Benchmarks remain explicitly pending.
+GoReleaser v2.19.0 validated the config and built a local snapshot with
+five archives and SHA-256 checksums. Every archive's digest and exact
+contents passed inspection. The native archive installed through the real
+installer under temporary HOME/XDG paths with a fixture download boundary;
+its binary ran help and a command. The packaged Linux/arm64 binary ran
+help and a command inside golang:1.27 Docker. Both exposed CGO_ENABLED=0
+in their build information. Linux/arm64 was statically linked.
 
-The generated defaults come from the compiled CLI through
-scripts/config-reference.sh, with fresh HOME/XDG paths and an empty inherited
-environment. The temporary cache path becomes a comment. Native regeneration
-matched the committed TOML. A refutation with invalid inherited config
-succeeded without modifying its bytes. The script also generated valid TOML
-inside Linux Docker. Shell syntax and both issue-form YAML files passed.
-All 41 local Markdown links and fragments resolved. no-ai-slop final pass
-applied to the new prose.
+Installer tests first failed because the scripts were absent, then passed.
+They pipe the installer into sh and cover all four Unix platform mappings,
+version/directory overrides, bad/missing/duplicate digests, failed downloads,
+invalid/empty archives, unsupported input, and symlink protection. Failed
+upgrades preserved the existing binary. Tests use private HOME, USERPROFILE,
+and every inherited/standard XDG path; no unowned process was signalled.
 
-The real CLI smoke used temporary HOME, USERPROFILE, every inherited XDG_*
-and standard XDG paths, plus isolated Go caches. It exercised make build,
-go install from the checkout, help, the exact README quick start, history,
-status, all config commands, fake-agent install/idempotency/byte restoration,
-shim install/list/bypass/uninstall, cache hit and missing-output restoration,
-GC listing/deletion of one owned file, observational reap, browser stop,
-and an owned watcher's TERM exit 0. No unowned process was signalled.
+The formula renderer rejects incomplete or ambiguous manifests before
+emitting output. Homebrew's actual class loader validated all four target
+URLs and digests from the rendered snapshot formula. Ruby and shell syntax,
+YAML parsing, GoReleaser check, actionlint v1.7.12, and git diff checks passed.
+no-ai-slop final pass applied to the changed prose. Architecture records the
+fixed asset names, installer publication, formula handling, and draft policy.
 
-Host pressure changed to warn during verification. The first tiny sleep
-waited at the default memory gate and hit the smoke harness's 90-second
-limit. README sleep examples now use --max-wait 2s; the exact quick start
-passed under real warn pressure, with two successful nonoverlapping jobs.
-Real heavy-work recipes retain the default memory wait.
+The first Homebrew validation used an obsolete factory method. Its corrected
+instance loader required a tap; disabling API installation then triggered a
+core-tap clone. Only that owned validator and its descendants received TERM.
+No core tap remained. Class-only loading with private HOME/cache then passed;
+it neither instantiated the formula nor installed it.
 
-The VHS parser initially rejected escaped quotes. Backtick string literals
-fixed the tape; the upstream v0.12.1 lexer/parser reported
-"VHS parser: valid tape". Its actual shell commands ran successfully and
-showed demo 1/1 with one queued job. Rendering remains unverified because
-VHS is unavailable. The recording instructions isolate HOME before shell
-startup and disable VHS publication.
+Pending: Stress next, then the Final gate. Published release installation,
+tap installation/tests, hosted workflow execution, and Windows runtime remain
+unverified. The release workflow only prepares drafts and attaches a formula;
+it does not publish or modify the tap. Existing CI retains the spec-required,
+retired macos-13 runner; the draft workflow gates on current runners.
 
-Open risk: the first native gate failed TestBrowserLifecycleCLI when
-browser status raced shutdown and found no session.json while the lifetime
-lock remained held. The unchanged test passed three isolated runs, then
-the full native and Docker gates passed. This existing observation race is
-documented; it was not fixed in the Docs item. Keep the failure for the
-Final gate rather than assuming one green run establishes stability.
+Prior open risk: browser status can race shutdown between session removal
+and lifetime-lock release. It did not fail this iteration's native or Linux
+gate. No runtime Go code or existing assertion changed here. Keep this
+observation for the Final gate; one green run does not establish stability.
+Rendered VHS demo and full external renderer/model/client flows also remain
+unverified. Benchmark results are still pending.
 
-Pending: Distribution next, then machine stress and the Final gate.
-Release installation, full external renderer/model/MCP-client flows,
-rendered demo, hosted CI, and Windows runtime remain unverified. No benchmark
-or publication result is claimed.
+Evidence: ignored .yoyo/distribution-{red,tests,native-check,linux-check,
+snapshot,smoke,linux-smoke,homebrew,actionlint}.log. Snapshot artifacts are in
+ignored dist/. Smoke and formula-check helpers remain under .yoyo/.
 
-Evidence is under ignored .yoyo/: docs-native-check.log,
-docs-linux-check.log, docs-smoke.log, docs-static-check.log,
-docs-linux-reference.log, docs-tape-check.log, docs-tape-red.log,
-docs-native-red.log, and docs-browser-retest.log. Only Docs was checked off.
-
-Next: read the Distribution item in TASKS.md and the immutable SPEC.md.
-Prepare distribution without pushing, tagging, publishing, or changing
-remotes. Preserve fake-HOME and owned-process boundaries.
+Next: read SPEC.md and the Stress item in TASKS.md. Implement only
+scripts/stress.sh and record measured results in docs/benchmarks.md. Preserve
+fake-HOME and owned-process boundaries; do not push or publish.
