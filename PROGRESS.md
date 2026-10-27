@@ -1,7 +1,7 @@
 # Progress
 
-Shipped locally: eleven TASKS.md items, through Cache. Implementation:
-f7456b3. SPEC.md is unchanged. No push, tag, release, or remote change.
+Shipped locally: twelve TASKS.md items, through Browser. Implementation:
+7f01d8a. SPEC.md is unchanged. No push, tag, release, or remote change.
 The overall goal remains incomplete.
 
 Verified: native `make check` and
@@ -10,40 +10,46 @@ Both passed vet, race tests, and all five cgo-free cross-builds.
 golangci-lint was unavailable and skipped. Windows compiled; its runtime
 remains unverified.
 
-Cache hashes declared input contents, names, permissions, argv, cwd/output,
-and configured environment. Hits verify the payload, restore the file,
-skip execution, and record cache_hit in history. Per-key kernel locks
-serialize identical jobs. Global locking protects atomic publication,
-restoration, and least-recently-used eviction. Stores enforce the configured
-payload size cap; `cache ls|prune` expose entries and cap enforcement.
+`browser start|stop|status|endpoint` manages one warm headless browser per
+state directory. Discovery checks PATH, OS installations, and Playwright
+cache layouts; configuration controls executable, flags, and idle timeout.
+A detached supervisor holds a lifetime kernel lock, creates a private
+profile, and proxies loopback CDP. Successful WebSocket connections count
+as clients; the final disconnect starts the idle interval. HTTP discovery
+and status polling do not extend it. Stop closes connections and terminates
+the owned browser. Unix crash recovery checks process birth, user, and
+private-profile argv before retiring a recorded orphan.
 
-Real CLI tests cover miss, deleted-output restoration, hardlink corruption,
-input/env/argv invalidation, history, pruning, failed commands, missing
-output, unavailable storage, and BATON=off. Eight concurrent CLI callers
-executed their renderer once. Native tests prove hardlink restoration;
-a separate Linux run printed `EXDEV hardlink failure restored identical
-bytes by copying`. Unit tests cover globstar, unmatched/invalid globs,
-symlinks, same-size input rewrites with restored mtime, unset versus empty
-environment, stable-input checks, LRU order, oversize outputs, lock
-cancellation, abandoned staging, corrupt metadata, destination protection,
-and absence of plaintext arguments/environment in cache metadata.
+Real CLI process tests on macOS/Linux cover six simultaneous starts sharing
+one browser, clients 2 -> 1 -> 0, active clients surviving the idle timeout,
+idle expiry, restart, explicit stop, startup failure, and supervisor SIGKILL
+recovery. An opt-in native test exchanged Browser.getVersion through the
+proxy with Chrome/156.0.8078.48, then stopped it. Unit tests cover executable
+layouts, managed flags, failed upgrades, discovery rewriting, origin/control
+rejection, idle timing, and recovery identity guards. Every test uses
+isolated HOME/XDG paths and stops only its owned processes.
 
-Red evidence: CLI tests failed with `flag provided but not defined:
--cache-key`. A later regression failed because corrupt metadata blocked
-pruning; pruning now removes malformed generated entries. No gate was
-weakened. Architecture decisions are recorded in docs/architecture.md;
-the no-ai-slop prose pass was applied.
+Red evidence: cache discovery selected chrome-headless-shell.pak instead of
+the executable. Exact executable basenames fix that Windows hazard. Native
+make check also exposed a status snapshot race: a new queue ticket could
+lose its label and agent. A deterministic regression failed with empty
+identity; refreshing metadata once on a missing match fixes it. The original
+real-process assertion passed ten repeated race runs and both full gates.
+No checks were weakened.
 
-Pending: complete only the browser item next. Read SPEC.md section 3.7,
-TASKS.md, docs/architecture.md, and existing config/process/lock helpers.
-Implement start, stop, status, endpoint, client counting, and idle shutdown.
-Do not start init/MCP, docs, distribution, stress, or final verification.
+Architecture decisions and limits are in docs/architecture.md. Browser
+recipes use primary-source API checks; the JavaScript/MCP tool flows remain
+unexecuted. The no-ai-slop prose pass was applied.
 
-Limits: one regular output file; callers must declare all dependencies,
-keep inputs stable, and use distinct output paths for concurrent different
-jobs. In-place edits to a restored hardlink change the cached inode and
-invalidate its next hit. The size cap counts logical payload bytes, not
-metadata, persistent lock files, or external hardlinks. Hostile same-user
-filesystem races and Windows runtime remain unverified. Earlier platform
-limits are in docs/architecture.md. Hosted CI, stress, and every README
-command remain pending.
+Pending: complete only init and MCP next. Read SPEC.md section 3.8, TASKS.md,
+docs/architecture.md, and existing shim manifest/atomic-write patterns.
+Implement fake-HOME install, idempotency, byte-identical uninstall, and the
+read-only MCP tools. Do not start the general docs, distribution, stress,
+or final-gate items in that iteration.
+
+Limits: a supervisor crash before ownership publication can leave an
+unrecorded orphan for reap; crash profiles remain. Direct connections to
+Chrome's private port bypass counting. CDP is locally accessible and is
+not a same-user sandbox. Windows runtime and crash recovery, hosted CI,
+stress results, and every README command remain unverified. Prior cache,
+gc, reap, scheduling, and platform limits remain in docs/architecture.md.

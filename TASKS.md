@@ -13,7 +13,7 @@ One item per iteration, in order. Check it off only when its tests pass.
 - [x] `reap`; test g
 - [x] `gc`; test h
 - [x] Cache (`--cache-key`, `--output`, `cache ls|prune`); test i
-- [ ] `browser start|stop|status|endpoint` with idle shutdown and client counting
+- [x] `browser start|stop|status|endpoint` with idle shutdown and client counting
 - [ ] `init` (skill, AGENTS.md/CLAUDE.md snippet, optional Claude Code hook, manifest, `--uninstall`) and `mcp`; test j
 - [ ] Docs: README, docs/*, demo.tape, comparison table, community files
 - [ ] Distribution: .goreleaser.yaml, install.sh, Homebrew formula template, release workflow (do not publish)
