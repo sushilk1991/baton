@@ -21,8 +21,20 @@ const (
 	defaultMargin   = 512 << 20
 )
 
+// MemoryGate selects whether admission enforces memory policy.
+type MemoryGate int
+
+const (
+	// GateEnabled checks pressure and memory headroom before taking slots.
+	GateEnabled MemoryGate = iota
+	// GateDisabled retains queue and slot limits without probing memory.
+	GateDisabled
+)
+
 // Options controls a memory wait; zero fields select defaults.
 type Options struct {
+	// MemoryGate can disable memory checks for a configured lightweight lane.
+	MemoryGate MemoryGate
 	// MaxWait bounds memory delays, never slot or queue contention.
 	MaxWait time.Duration
 	// PollInterval controls how often pressure and slots are retried.
@@ -51,6 +63,9 @@ type waitState struct {
 func New(provider pressure.Provider, options Options) (*Gate, error) {
 	if provider == nil || options.MaxWait < 0 || options.PollInterval < 0 || options.RecoveryWindow < 0 {
 		return nil, errors.New("gate needs a provider and nonnegative durations")
+	}
+	if options.MemoryGate != GateEnabled && options.MemoryGate != GateDisabled {
+		return nil, errors.New("unknown memory gate policy")
 	}
 	if options.MaxWait == 0 {
 		options.MaxWait = defaultMaxWait
@@ -84,12 +99,13 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 
 		// Never retain slots while probing. Expiry bypasses only memory policy.
 		// sample -> healthy/timeout -> ticket.TryAcquire -> lease -> child
-		expired := !time.Now().Before(deadline)
-		if !expired {
+		gated := gate.options.MemoryGate == GateEnabled
+		expired := gated && !time.Now().Before(deadline)
+		if gated && !expired {
 			sample, sampleErr = gate.probe(ctx, deadline)
 		}
-		ready := state.ready(sample, sampleErr, memory, gate.options.MarginBytes, gate.options.RecoveryWindow, time.Now())
-		expired = !time.Now().Before(deadline)
+		ready := !gated || state.ready(sample, sampleErr, memory, gate.options.MarginBytes, gate.options.RecoveryWindow, time.Now())
+		expired = gated && !time.Now().Before(deadline)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

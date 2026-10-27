@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sushilk1991/baton/internal/admission"
+	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/lane"
 	"github.com/sushilk1991/baton/internal/lockfile"
 	"github.com/sushilk1991/baton/internal/pressure"
@@ -21,6 +22,7 @@ import (
 )
 
 const (
+	gib               = uint64(1 << 30)
 	exitFailure       = 1
 	exitUsage         = 2
 	exitNotExecutable = 126
@@ -29,7 +31,6 @@ const (
 	fileMode          = 0600
 	sampleInterval    = 100 * time.Millisecond
 	noticeInterval    = 2 * time.Second
-	defaultMaxWait    = 30 * time.Minute
 )
 
 type streams struct {
@@ -50,6 +51,7 @@ type options struct {
 	quiet    bool
 	slots    int
 	provider pressure.Provider
+	gate     admission.Options
 }
 
 type supervisor struct {
@@ -159,7 +161,9 @@ func admit(ctx context.Context, opts options, root string, out io.Writer) (*lane
 		return nil, err
 	}
 	defer ticket.Close()
-	gate, err := admission.New(provider, admission.Options{MaxWait: opts.maxWait, OnWait: notices.wait})
+	policy := opts.gate
+	policy.MaxWait, policy.OnWait = opts.maxWait, notices.wait
+	gate, err := admission.New(provider, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -262,18 +266,8 @@ func (control *supervisor) waitCode() int {
 }
 
 func stateRoot() (string, error) {
-	base := os.Getenv("XDG_STATE_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".local", "state")
-	}
-	if !filepath.IsAbs(base) {
-		return "", errors.New("XDG_STATE_HOME must be absolute")
-	}
-	return filepath.Join(base, "baton"), nil
+	paths, err := config.ResolvePaths()
+	return paths.StateDir, err
 }
 
 func monitor(store *store, job *jobRecord, command *exec.Cmd, done <-chan struct{}, out io.Writer) {

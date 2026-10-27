@@ -247,9 +247,9 @@ and `pnpm exec playwright`. Rule order is encode, render, ML, install, build.
 Unmatched commands skip queue and pressure admission but retain history and
 learning. `BATON=off` skips scheduling and telemetry.
 
-Until the config item supplies TOML, default capacity follows the spec's
-RAM/core formulas; unknown lane names have one slot. Render capacity uses
-effective RAM from the pressure provider, with one slot if probing fails.
+Default capacity follows the spec's RAM/core formulas; unknown lane names
+have one slot. Render capacity uses effective RAM from the pressure provider,
+with one slot if probing fails. Configuration can override these defaults.
 `--weight` must fit the lane. `--mem` accepts bytes and binary K/M/G units,
 including decimal quantities that resolve to whole bytes, such as `1.5G`.
 Explicit memory overrides a learned prediction. Cache flags belong to the
@@ -313,3 +313,81 @@ restoration, process-tree RSS, and reuse of the learned budget. Concurrent
 history writers, rotation, corrupted predictions, matcher rules, identity,
 and memory units have unit coverage. Native CLI smoke tests additionally
 run the built binary with 20 render jobs and inspect its JSONL history.
+
+## Configuration
+
+`internal/config` owns XDG paths, machine defaults, strict TOML decoding,
+and resolved lane policy. `run` and the config commands use this layer.
+BurntSushi/toml v1.4.0 is the only dependency; its module requires Go 1.18,
+below baton's Go 1.22 minimum. Baton performs no network access to load it.
+
+```text
+XDG environment -> paths -------+-> config path
+                               |
+hardware -> defaults -> TOML overlay -> validation -> effective policy
+                                                       |         |
+                                                  config show   runner
+                                                                 |
+                                                       queue -> memory gate
+```
+
+Path defaults are `.config/baton/config.toml`, `.local/state/baton`,
+`.cache/baton`, and `.local/share/baton` beneath the OS home directory on
+every platform. Windows uses `USERPROFILE` through `os.UserHomeDir`.
+`XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, and `XDG_DATA_HOME`
+override their respective bases. Relative overrides fail explicitly;
+environment variables and `~` inside TOML paths are not expanded. Cache
+directories and GC roots must be absolute. These choices avoid the
+different macOS/Windows defaults in `os.UserConfigDir`.
+
+An absent file uses current hardware defaults. Empty files are valid.
+Overrides merge field by field; unmentioned lanes remain present. New
+lanes default to one slot, memory gating enabled, and `max_wait = '30m'`.
+An omitted `max_weight` follows the resolved slot count. Explicit unknown
+lane names also retain the previous one-slot behavior. `auto` is reserved.
+Config keys are case-sensitive: unknown keys and differently cased aliases
+fail, including aliases accepted by the underlying TOML struct decoder.
+
+The schema contains these tables:
+
+- `[lanes.NAME]`: `slots`, `max_weight`, `memory_gate`, `max_wait`, and
+  regex `matchers`. All counts and durations must be positive; weights
+  cannot exceed capacity. Empty matchers disable automatic classification.
+- `[memory]`: `margin = '512M'`, `poll_interval = '250ms'`, and
+  `recovery_window = '2s'`. Byte units retain the runner's binary K/M/G
+  interpretation; duration strings use Go's `time.ParseDuration` syntax.
+- `[shims]`: `commands`; `[shims.fast_paths]`: command-to-regex-array
+  entries. `[reap]`: `older_than = '2h'`, `grace_period = '5s'`, and regex
+  `matchers`. Later shim/reap tasks consume these validated settings.
+- `[gc]`: absolute `roots`, relative slash `patterns`, and
+  `older_than = '168h'`. Roots default to empty, so no cleanup is enabled.
+  Patterns cannot contain parent traversal. `[cache]`: absolute `dir`,
+  `max_size = '10G'`, and allowlisted `env` names, empty by default.
+- `[browser]`: `executable` (empty for discovery), extra `flags`, and
+  `idle_timeout = '10m'`. Browser lifecycle behavior remains a later task.
+
+Top-level `match_order` lists lanes to try first. The default order remains
+encode, render, ML, install, build. Unlisted lanes follow in lexical order,
+so custom precedence is deterministic across processes. Unknown/duplicate
+entries and invalid regexes fail validation. Matching inspects joined argv;
+shell script bodies remain opaque. CLI `--lane`, `--weight`, and
+`--max-wait` take precedence, subject to the configured weight limit.
+`memory_gate = false` skips pressure probes and memory timeout warnings,
+while retaining FIFO, priorities, slot limits, cancellation, and notices.
+`BATON=off` also bypasses configuration loading, allowing recovery from a
+damaged file. Normal flag validation still applies.
+
+`config show` emits complete effective TOML. `config path`, `show`, and
+`validate` create no files or directories. Validation without a file checks
+the effective defaults. `config init` snapshots current defaults into a
+private file. It writes, syncs, and closes a same-directory temporary file,
+then publishes it with a hard link. Publication cannot replace an existing
+file or symlink, even under concurrent initialization. Filesystems without
+hard links return an error; no overwrite fallback is attempted. A second
+init fails while preserving all existing bytes and comments.
+
+Unit tests cover hardware formulas, inheritance, custom lanes, ordering,
+disabled matching, strict keys/types, regexes, paths, durations, byte units,
+effective-TOML round trips, and concurrent initialization. Runner tests
+verify configured weights and waits, CLI overrides, bypass recovery, and
+disabled gates retaining capacity without probes or timeout warnings.

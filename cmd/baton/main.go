@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/runner"
 )
 
@@ -19,7 +20,8 @@ const (
 Usage: baton <command> [arguments]
 
 Commands:
-  run    Queue and execute a command
+  run     Queue and execute a command
+  config  Initialize, show, locate, or validate configuration
 `
 )
 
@@ -40,6 +42,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// Keep command execution below argument dispatch.
 	if args[0] == "run" {
 		return runner.Run(args[1:], os.Stdin, stdout, stderr)
+	}
+	if args[0] == "config" {
+		return config.Run(args[1:], stdout, stderr)
 	}
 
 	// Fail explicitly until each command exists, so agents cannot infer success.

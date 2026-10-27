@@ -18,61 +18,6 @@ import (
 	"github.com/sushilk1991/baton/internal/queue"
 )
 
-func TestAutoLane(t *testing.T) {
-	for _, test := range []struct {
-		args []string
-		want string
-	}{
-		{[]string{"/usr/bin/ffmpeg", "-i", "in"}, "encode"},
-		{[]string{"npx", "remotion", "render"}, "render"},
-		{[]string{"pnpm", "exec", "playwright", "test"}, "render"},
-		{[]string{"python", "-m", "mlx_whisper"}, "ml"},
-		{[]string{"whisper", "audio.wav"}, "ml"},
-		{[]string{"npm", "i"}, "install"}, {[]string{"pnpm", "ci"}, "install"},
-		{[]string{"uv", "pip", "install"}, "install"}, {[]string{"uv", "sync"}, "install"},
-		{[]string{"pip3", "install", "thing"}, "install"}, {[]string{"brew", "install", "thing"}, "install"},
-		{[]string{"cargo", "install", "thing"}, "install"},
-		{[]string{"go", "build", "./..."}, "build"}, {[]string{"xcodebuild", "test"}, "build"},
-		{[]string{"cargo", "build"}, "build"}, {[]string{"gradle", "build"}, "build"},
-		{[]string{"git", "status"}, ""}, {[]string{"npm", "info"}, ""},
-		{[]string{"sh", "-c", "ffmpeg -i in"}, ""},
-	} {
-		if got := autoLane(test.args); got != test.want {
-			t.Errorf("%v = %q, want %q", test.args, got, test.want)
-		}
-	}
-}
-
-func TestMemoryBudget(t *testing.T) {
-	for _, test := range []struct {
-		value string
-		want  uint64
-	}{
-		{"4G", 4 << 30}, {"1.5GiB", 3 << 29}, {"512M", 512 << 20}, {"2k", 2048}, {"123B", 123}, {"7", 7},
-	} {
-		got, err := parseMemory(test.value)
-		if err != nil || got != test.want {
-			t.Errorf("%s = %d, %v; want %d", test.value, got, err, test.want)
-		}
-	}
-	for _, text := range []string{"", "0", "-1G", "NaN", "Inf", "18446744073709551616", "4T", "0.1B"} {
-		if _, err := parseMemory(text); err == nil {
-			t.Errorf("accepted invalid memory %q", text)
-		}
-	}
-}
-
-func TestDefaultSlots(t *testing.T) {
-	for name, want := range map[string]int{"render": 2, "encode": 2, "build": 3, "ml": 1, "install": 1, "x": 1} {
-		if got := laneSlots(name, 12, 36*gib); got != want {
-			t.Errorf("%s slots %d, want %d", name, got, want)
-		}
-		if got := laneSlots(name, 1, gib); got != 1 {
-			t.Errorf("small machine %s slots %d, want 1", name, got)
-		}
-	}
-}
-
 func TestIdentity(t *testing.T) {
 	for _, test := range []struct {
 		env            []string
