@@ -1,7 +1,7 @@
 # Progress
 
 Done: scaffold, lanes/slots, fair queues, pressure admission, and `baton run`.
-The runner admits through queue and memory policy, forwards Unix signals to
+Commit da3e5a3 admits through queue and memory policy, forwards Unix signals to
 the child group, preserves stdio and exit status, restores terminal control,
 and records identity, JSONL history, process-tree RSS, and memory predictions.
 Policy and failure boundaries are recorded in docs/architecture.md.
@@ -18,6 +18,8 @@ process-tree RSS, and learned-budget reuse. One captured tree peak was
 46891008 bytes, reused as the next run's memory budget. Unit tests cover
 concurrent history writers, rotation, invalid predictions, matching, identity,
 memory units, and wait-observer failures.
+
+Windows runner and CLI test binaries also cross-compiled.
 
 The built native binary also passed a terminal smoke test and 20 parallel
 `run --lane render` commands: job-measured active=0, peak=2 after completion.

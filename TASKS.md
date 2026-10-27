@@ -6,7 +6,7 @@ One item per iteration, in order. Check it off only when its tests pass.
 - [x] Lanes and slots: lock-file semaphores (flock on Unix, LockFileEx on Windows), weights, crash safety; tests a and b
 - [x] Queue: tickets, FIFO within priority, aging, dead-ticket cleanup; test c
 - [x] Pressure providers: darwin, linux (PSI, meminfo, cgroup v2), windows; gate with hysteresis and max_wait; fake provider; test e
-- [ ] `baton run`: exec, process group, signal forwarding, exit codes, wait notices, auto lane, identity detection, history JSONL, peak-RSS sampling, learned memory; test d
+- [x] `baton run`: exec, process group, signal forwarding, exit codes, wait notices, auto lane, identity detection, history JSONL, peak-RSS sampling, learned memory; test d
 - [ ] Config: TOML, hardware-derived defaults, `config init|show|path|validate`, XDG paths on every OS
 - [ ] `status` (`--json`, `--watch`, `--line`) and `history`
 - [ ] `shim install|uninstall|list` with fast paths and recursion guard; test f
