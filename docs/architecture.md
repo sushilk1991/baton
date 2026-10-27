@@ -358,7 +358,7 @@ The schema contains these tables:
   interpretation; duration strings use Go's `time.ParseDuration` syntax.
 - `[shims]`: `commands`; `[shims.fast_paths]`: command-to-regex-array
   entries. `[reap]`: `older_than = '2h'`, `grace_period = '5s'`, and regex
-  `matchers`. Shims consume these settings; reap remains a later task.
+  `matchers`. Shims and reap consume their respective settings.
 - `[gc]`: absolute `roots`, relative slash `patterns`, and
   `older_than = '168h'`. Roots default to empty, so no cleanup is enabled.
   Patterns cannot contain parent traversal. `[cache]`: absolute `dir`,
@@ -532,3 +532,95 @@ TOML, recursive external wrappers, nested jobs without another reservation
 or history record, and owned-file uninstall. Unit tests cover policy
 overrides, missing tools, manifest recovery, user-file
 preservation, invalid names, management contention, and closed output.
+
+
+## Reaping orphan processes
+
+`cmd/baton` dispatches `reap` to `internal/reap`. The policy layer calls
+`internal/process` for OS inspection and single-process signals. Default
+minimum age is two hours; `[reap].older_than` and `--older-than` override
+it. The CLI accepts zero for explicit immediate cleanup. Configuration
+requires positive durations. Grace defaults to five seconds and comes from
+`[reap].grace_period`.
+
+```text
+OS snapshot + stale job birth/owner records
+                   |
+     own UID + age + orphan + heavy command + config matchers
+                   |
+              print candidates
+                   |
+        --yes -> revalidate -> TERM all -> one grace period
+                                            |
+                                  revalidate survivors -> KILL
+                                            |
+                                      confirm exit
+```
+
+Selection requires the current effective UID, a readable kernel birth
+identity, and either parent PID 1 or a matching job record whose recorded
+owner is dead. New runner records store `process_start`; old records
+without it qualify only through direct init/launchd adoption. A stale PID
+alone is insufficient. Linux identities include the boot ID and start
+ticks; macOS uses kernel start seconds and microseconds. Unreadable owner
+metadata is an error, not evidence of death. Reap leaves all state files
+unchanged.
+
+Known executable names identify ffmpeg, browser automation drivers, and
+Remotion/HyperFrames render commands. Node drivers require a recognized
+package entry path or npm `.bin` entry. Arbitrary arguments, shell source,
+Node eval text, and projects merely named `playwright` do not establish a
+heavy process. Config regexes match joined argv and narrow this selection;
+an empty matcher list disables it. They cannot override the browser guards.
+Opaque wrappers and unnamed custom drivers require a later driver rule;
+reap does not infer their identity from incidental argument substrings.
+
+Browsers require an actual `--headless` or `--remote-debugging-*` argument
+before `--`. Debugging without headless mode also requires an explicit
+private absolute profile path. Known normal Chrome, Chromium, and Edge
+profile directories are protected, including aliases and subdirectories.
+Known profile paths are compared without case to protect case-insensitive
+filesystems; this also conservatively excludes case variants on Linux.
+Every explicit profile argument is checked, so a later duplicate cannot
+hide a normal profile. Headless mode without an explicit profile remains
+eligible. A browser with no automation flags is always excluded.
+
+macOS enumerates PIDs with `ps`, then reads
+[XNU proc_bsdinfo](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/proc_info.h)
+and `KERN_PROCARGS2` through raw system calls without cgo. The
+[XNU procargs implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sysctl.c)
+can return `EINVAL` during process exit; a second metadata read confirms
+exit before treating that error as disappearance. The argument decoder
+preserves spaces and empty arguments and discards environment strings.
+Linux reads `/proc/PID/stat`, `status`, and NUL-delimited `cmdline`; age
+uses `/proc/uptime` and the ELF `AT_CLKTCK` value rather than assuming a
+clock frequency. See the kernel's
+[proc interface](https://docs.kernel.org/filesystems/proc.html).
+
+Before TERM and again before KILL, reap verifies birth, UID, argv, age,
+and orphan status. Signals target individual PIDs, never process groups.
+All selected processes share one grace period. Linux binds signals to
+pidfds when supported; kernels without `pidfd_open` fall back to immediate
+identity revalidation. macOS also revalidates immediately before `kill`.
+Those fallback paths retain a small unavoidable inspection-to-signal race;
+there is no atomic compare-and-signal syscall there. PID 1 and baton itself
+are always protected. Zombies count as exited. Reap polls every 25 ms and
+waits up to two seconds after KILL; surviving identities fail the command.
+Windows reap fails explicitly without signalling; Windows core commands
+still build. Windows reap runtime support is deferred.
+
+Output lists PID, parent, age, and executable path, omitting arguments that
+could contain credentials. Control characters are replaced. Discovery has
+a ten-second deadline. Discovery, record, signal, and output errors return
+failure. Listing finishes before any signal, so a closed stdout prevents
+cleanup. A successful empty list means no inspectable eligible process;
+it does not establish that inaccessible processes are absent.
+
+Native CLI integration tests spawn their own named process fakes and let
+owned launchers exit. A temporary-directory matcher excludes every existing
+machine process. Dry-run lists three orphans while leaving all six fakes
+alive. `--yes` delivers TERM and removes all three selected identities,
+including a fake that ignores TERM; active children and interactive/default
+profile browsers survive. Separate tests cover recorded dead owners,
+reused PIDs, live owners, changed argv, lost orphan status, closed output,
+parser errors, profile aliases, and config overrides.

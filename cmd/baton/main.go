@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/sushilk1991/baton/internal/config"
+	"github.com/sushilk1991/baton/internal/reap"
 	"github.com/sushilk1991/baton/internal/runner"
 	"github.com/sushilk1991/baton/internal/shim"
 )
@@ -26,6 +27,7 @@ Commands:
   status  Show running jobs, queues, slots, and memory
   history Show completed jobs
   shim    Install, list, or uninstall command wrappers
+  reap    List or terminate aged orphaned heavy processes
 `
 )
 
@@ -55,6 +57,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "history" {
 		return runner.History(args[1:], stdout, stderr)
+	}
+
+	if args[0] == "reap" {
+		return reap.Run(args[1:], stdout, stderr)
 	}
 
 	if args[0] == "shim" {

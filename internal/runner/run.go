@@ -18,6 +18,7 @@ import (
 	"github.com/sushilk1991/baton/internal/lane"
 	"github.com/sushilk1991/baton/internal/lockfile"
 	"github.com/sushilk1991/baton/internal/pressure"
+	"github.com/sushilk1991/baton/internal/process"
 	"github.com/sushilk1991/baton/internal/queue"
 )
 
@@ -131,6 +132,11 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	job.WaitNanos = job.Start.Sub(job.Queued).Nanoseconds()
 	code, runErr := execute(ctx, control, opts.args, ioSet, func(command *exec.Cmd, done <-chan struct{}) {
 		job.PID = command.Process.Pid
+		// Persist a birth token for reap. Inspection failure leaves this optional
+		// field empty; never replace the child exit status with metadata failure.
+		if info, err := process.Read(ctx, job.PID); err == nil {
+			job.ProcessStart = info.Start
+		}
 		job.Phase = "running"
 		monitor(store, &job, command, done, ioSet.err)
 	})

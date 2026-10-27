@@ -33,6 +33,7 @@ type jobRecord struct {
 	User          string    `json:"user"`
 	OwnerPID      int       `json:"owner_pid"`
 	PID           int       `json:"pid"`
+	ProcessStart  string    `json:"process_start,omitempty"`
 	Weight        int       `json:"weight"`
 	QueueSequence uint64    `json:"queue_sequence,omitempty"`
 	Priority      string    `json:"priority"`
