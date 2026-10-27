@@ -1,7 +1,7 @@
 # Progress
 
-Shipped locally: nine TASKS.md items, through reap. Reap implementation:
-038c6d1. SPEC.md is unchanged. No push, tag, release, or remote change.
+Shipped locally: ten TASKS.md items, through gc. Implementation: 0d8d23e.
+SPEC.md is unchanged. No push, tag, release, or remote change.
 The overall goal remains incomplete.
 
 Verified: final native `make check` and
@@ -10,35 +10,36 @@ Both passed vet, race tests, and all five cgo-free cross-builds.
 golangci-lint was unavailable and skipped. Windows compiled; its runtime
 remains unverified.
 
-Reap lists aged, owned heavy processes adopted by init/launchd or linked
-by a kernel birth identity to a dead recorded owner. Default age is two
-hours; config controls age, grace, and narrowing matchers. `--yes` checks
-identities before TERM and KILL, shares one grace period, and confirms
-exit. Browser guards preserve interactive and known default profiles.
-Runner records now include optional process birth tokens. OS inspection
-and signals stay in internal/process. Decisions are in docs/architecture.md.
+GC reads configured roots, slash globs, and minimum file age. Default roots
+are empty; default age is seven days. Dry-run prints sorted paths and sizes.
+`--yes` revalidates each regular file before a parent-relative unlink.
+Symlinks, special files, directories, fresh files, and unmatched files stay.
+Duplicate and overlapping roots produce one candidate per absolute path.
 
-The first CLI regression failed with `unknown command "reap"`. The runner
-record regression then failed because a running record lacked its birth
-token. Real CLI tests selected three owned orphan fakes. Dry-run left all
-six fakes alive. `--yes` delivered TERM and removed the three selected
-identities, including a TERM-ignoring fake; the active child, interactive
-browser, and default-profile browser survived. Every signalling test used
-an anchored temporary-directory matcher, never existing machine jobs.
+Real native and Linux CLI tests selected three files totaling 16 bytes.
+Dry-run changed nothing. `--yes` deleted the three files and preserved an
+outside sentinel, symlinks, and fresh/unmatched files. Tests also cover
+globstar, strict age boundaries, FIFO inspection, root/parent/leaf
+replacement, same-size rewrites with restored mtime, traversal rejection,
+closed/short output, config failures, and partial-deletion reporting.
+Initial CLI regressions failed with `unknown command "gc"`; the short-write
+regression failed before output handling was fixed.
 
-Further regressions cover PID reuse, stale records, live recorded owners,
-lost orphan status, changed argv, denied signals, closed output, malformed
-flags, empty arguments, profile aliases/case/duplicates, Node eval, project
-name false positives, and npm .bin drivers. A real macOS TERM test exposed
-procargs EINVAL during exit; kernel metadata now confirms disappearance.
+The first Linux gate exposed an existing status publication race:
+`TestObserveLiveCLI` saw queue sequence 0. A deterministic regression also
+failed with sequence 0, expected 7. Status now copies the live ticket's
+sequence into the projection. The regression and both full gates pass.
 
-Pending: complete only `gc` and test h next. Read SPEC.md section 3.5,
-TASKS.md, docs/architecture.md, and the gc config schema before editing.
-Use temporary roots; test dry-run, deletion, age, containment, and symlink
-protection. Do not start cache, browser, init, docs, or distribution work.
+Pending: complete only Cache and test i next. Read SPEC.md cache clauses,
+TASKS.md, docs/architecture.md, config cache schema, and runner options/store.
+Implement input/argv/allowlisted-env hashing, hit restoration, miss storage,
+and `cache ls|prune`. Test with temporary HOME/XDG/input/output roots.
+Do not start browser, init/MCP, docs, distribution, stress, or final gate.
 
-Limits: Windows reap fails explicitly without signalling. macOS and Linux
-kernels without pidfds retain a small inspection-to-signal race. Opaque
-wrappers are excluded. Old records without birth tokens rely on direct
-init/launchd adoption. Hosted CI, Windows runtime, stress, and README
-verification remain pending. Existing runner/shim limits remain documented.
+Limits: gc rejects symlinked root components, including macOS `/tmp` and
+`/var` aliases; use canonical paths. The final metadata check and unlink
+are separate syscalls. Hostile directory renames and privileged mount
+changes exceed its isolation guarantees. Configured gc roots on Windows
+fail explicitly. Directory shells remain; byte counts are logical lengths.
+Earlier runner/shim/reap limits remain in docs/architecture.md. Hosted CI,
+other-architecture runtime, stress, and README verification remain pending.
