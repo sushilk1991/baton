@@ -258,3 +258,8 @@ func waitGone(ctx context.Context, d driver, rows []process.Info, timeout time.D
 		}
 	}
 }
+
+// Inspect reports configured candidates without exposing a signalling option.
+func Inspect(out io.Writer) error {
+	return runReap(out, false, false, 0)
+}

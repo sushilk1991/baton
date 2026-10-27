@@ -10,6 +10,8 @@ import (
 	"github.com/sushilk1991/baton/internal/cache"
 	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/gc"
+	"github.com/sushilk1991/baton/internal/integration"
+	"github.com/sushilk1991/baton/internal/mcp"
 	"github.com/sushilk1991/baton/internal/reap"
 	"github.com/sushilk1991/baton/internal/runner"
 	"github.com/sushilk1991/baton/internal/shim"
@@ -34,6 +36,8 @@ Commands:
   gc      List or delete aged regenerable intermediates
   cache   List cached outputs or prune to the size cap
   browser Manage the shared headless browser
+  init    Preview, install, or remove agent integration
+  mcp     Serve read-only tools over stdio
 `
 )
 
@@ -52,6 +56,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// Keep command execution below argument dispatch.
+	if args[0] == "mcp" {
+		return mcp.Run(args[1:], os.Stdin, stdout, stderr)
+	}
+	if args[0] == "init" {
+		return integration.Run(args[1:], os.Stdin, stdout, stderr)
+	}
 	if args[0] == "browser" {
 		return browser.Run(args[1:], stdout, stderr)
 	}

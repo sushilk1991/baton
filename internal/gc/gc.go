@@ -196,3 +196,8 @@ func deleteRows(out io.Writer, rows []candidate) error {
 	_, err := fmt.Fprintf(out, "Deleted %d file(s); %d bytes\n", count, total)
 	return err
 }
+
+// Inspect reports configured candidates without exposing a deletion option.
+func Inspect(out io.Writer) error {
+	return collect(out, false)
+}

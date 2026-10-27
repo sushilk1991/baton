@@ -844,3 +844,79 @@ the empty label and agent; the original real-process assertion is unchanged.
 If a job finishes during observation, its ticket can still appear with only
 scheduling fields. Status remains an observation, not an atomic transaction
 across every lane and job.
+
+## Agent integration and MCP
+
+`internal/integration` separates detection/planning, file publication, and
+hook rewriting. A plain `init` previews; `--yes` applies. `--dry-run` takes
+precedence. `--claude-hook` opts into a Bash PreToolUse hook; existing
+sessions need a restart. Discovery uses existing standard agent directories,
+not PATH executables or third-party services. The default shared skill is
+installed even when no specific agent directory exists.
+
+```text
+agent discovery -> preflight plan -> private write-ahead manifest
+                                          |
+                                directories -> files/links
+                                          |
+                     reinstall replays / uninstall reverses
+
+MCP stdin -> validate JSON-RPC -> fixed read adapters -> domain packages
+                                                        |
+MCP stdout <- text content / isError <- snapshot or candidate listing
+```
+
+The manifest records original and installed bytes, modes, links, and created
+directories. Publication uses synced temporary files and atomic rename.
+The management kernel lock serializes baton writers; its inode is retained.
+Before every operation, originals or installed bytes must still match.
+A crash between journal publication and a target write leaves a recoverable
+before/after state. Uninstall journals its direction before restoring leaves
+and removing empty parents. User edits cause a nonzero exit before any
+restoration, retaining the journal for a later retry. Originals may include
+sensitive settings, so the manifest is private (0600). No secrets are printed.
+
+Existing instruction symlinks resolve within home/config roots and retain
+their links. Skill-parent aliases are resolved before checking for self-links.
+External targets fail. This is cooperative filesystem management, not an
+isolation boundary against a hostile same-user process racing validation
+and rename. Power-loss directory durability is not promised. Windows needs
+symlink permission for agent links; Unix permission restoration is best
+effort there.
+
+Aider uses its documented read-only `read` convention. The installer narrowly
+edits common scalar/list YAML and JSON forms. Ambiguous YAML fails before publication; no YAML dependency is
+added. Goose also receives a global `.goosehints` snippet. Cursor receives
+the discoverable skill; no undocumented global instructions file is created.
+The shared `~/.agents/AGENTS.md` snippet is available to other integrations.
+
+The Claude hook returns only `updatedInput`, preserving other tool fields
+and normal permission checks. An explicit lane schedules the complete shell
+command as one Bash job. The blocking hook alternative
+(`--claude-hook-block`) exits 2 with the exact queued command for clients
+without input-rewrite support. No shell command executes during
+classification. Quote tokenization avoids wrapping commands that already contain baton run. The
+child shell receives the existing shim admission marker, preventing a shim
+from waiting on the slot its parent holds. Shell expansion and script
+contents remain opaque. This is advisory routing; explicit commands and shims cover cases outside the classifier. Hook paths
+bind to the installed binary location. No live agent session was modified
+or used to establish hook-loading proof.
+
+The MCP stdio server uses a small stdlib JSON-RPC implementation. Its current
+protocol is 2025-11-25, with the compatible basic tool exchange accepted for
+2025-06-18, 2025-03-26, and 2024-11-05. Initialization and the initialized
+notification precede tools. Only status, history, reap_candidates,
+gc_candidates, and explain_lane are advertised, all annotated read-only.
+Read-only reap/gc adapters expose no mutation option. History accepts only
+validated filter strings; explain_lane applies the same config matcher as
+run. No argument can select a CLI subcommand, signal, deletion, or executable.
+
+Messages are newline-delimited with a 1 MiB input cap. Calls run serially;
+notifications produce no response. Unknown methods/tools, invalid IDs, and
+invalid parameters return JSON-RPC errors. Domain failures are MCP tool
+errors. Results use text content; no output schema, resources, subscriptions,
+cancellation of in-flight calls, or remote transport is advertised. Init
+leaves client-specific MCP registration to the user; the command is
+`baton mcp`. Integration tests exercise a real subprocess exchange, and a
+compiled-binary test executes the installed hook and its returned command
+with quoted argv before uninstalling, under temporary HOME/XDG roots.
