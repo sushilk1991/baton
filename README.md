@@ -32,8 +32,8 @@ shims or agent hooks. Go can also install from the checkout:
 go install ./cmd/baton
 ```
 
-Release installation is planned through Homebrew, a checksum-verifying
-installer, and Go. These commands require a published release and are
+Release packaging includes a Homebrew formula and a checksum-verifying
+installer. These commands require a published release and are
 unverified; they are not the current installation path:
 
 ```sh
@@ -41,6 +41,11 @@ brew install sushilk1991/tap/baton
 curl -fsSL https://raw.githubusercontent.com/sushilk1991/baton/main/install.sh | sh
 go install github.com/sushilk1991/baton/cmd/baton@latest
 ```
+
+The installer defaults to `~/.local/bin`, verifies SHA-256, and leaves shell
+configuration alone. Set `BATON_VERSION=v1.2.3` to choose a tag or
+`BATON_INSTALL_DIR=/absolute/path` to choose a directory. See
+[distribution](docs/distribution.md) for local packaging and the draft workflow.
 
 ## Try it in 60 seconds
 

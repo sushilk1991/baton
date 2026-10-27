@@ -1,0 +1,51 @@
+# Release assets share names with install.sh and the Homebrew template.
+version: 2
+project_name: baton
+
+builds:
+  - id: baton
+    main: ./cmd/baton
+    binary: baton
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # No main.version symbol exists; preserve Go's embedded build information.
+    ldflags:
+      - -s -w
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - id: release
+    ids: [baton]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: "0.0.0-snapshot"
+
+# Tags prepare a draft; publication and tap changes remain explicit actions.
+release:
+  github:
+    owner: sushilk1991
+    name: baton
+  draft: true
+  prerelease: auto
+
+changelog:
+  disable: true

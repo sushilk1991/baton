@@ -956,3 +956,48 @@ Community policies point to GitHub's private reporting entry point
 conditionally. Its availability is unverified; a dedicated private contact
 channel and response-time commitment remain unset. Release publication,
 machine benchmarks, and hosted CI proof belong to their separate gates.
+
+## Distribution
+
+GoReleaser v2.19.0 builds exactly the five spec targets without cgo. Archive
+names omit the version (`baton_linux_arm64.tar.gz`, for example); the release
+URL supplies it. This lets the installer use GitHub's `latest/download`
+route without an API call or JSON parser. `checksums.txt` contains SHA-256
+digests. Unix archives are tar.gz; Windows is zip. Go build metadata remains
+embedded. Signing, notarization, and optional SBOM generation are unconfigured.
+
+```text
+tag -> native gates -> GoReleaser -> draft archives + checksums
+                                      |
+                           formula renderer -> attached baton.rb
+
+installer -> HTTPS archive + manifest -> SHA-256 -> stdout extraction
+                                                        |
+                                    destination staging -> rename baton
+```
+
+The installer is a standalone POSIX shell script suitable for piping into
+sh. It defaults to `~/.local/bin`; environment overrides choose a version
+or absolute destination directory. It ignores curlrc, permits only HTTPS,
+requires a unique exact archive digest, extracts only the binary to stdout,
+and replaces a regular destination only after verification. Symlink and
+nonregular destinations fail. It never edits shell or agent files. Rename
+is atomic on the destination filesystem; no power-loss durability or
+hostile same-user filesystem-race isolation is promised. Concurrent
+successful installers may replace each other's verified binary.
+
+Release tags prepare drafts. The
+workflow gates its tagged source on current Linux/macOS runners and Windows
+core checks. The retired macos-13 entry remains in ordinary CI because the
+spec is immutable; it is omitted from this separate draft workflow. This
+does not establish a green run of the spec's complete hosted CI matrix.
+
+The Homebrew formula is rendered from the checked manifest and attached to
+the draft. Copying it into sushilk1991/homebrew-tap is a later explicit
+operation; this repo receives no tap credentials and makes no remote write
+while preparing distribution. Formula tests replace HOME, USERPROFILE,
+every inherited XDG key, and standard XDG paths. Unit tests pipe the real
+installer into sh with fake platform/network boundaries and real archives,
+hashing, installation, and executable invocation. Local snapshot packaging
+and fixtures do not prove published release or tap availability. See
+[distribution](distribution.md) for the checked primary references.
