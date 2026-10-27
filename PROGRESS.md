@@ -1,43 +1,47 @@
 # Progress
 
-Done: scaffold, lanes/slots, fair queues, pressure admission, `baton run`,
-and configuration. Config implementation: 85068e2. Exactly the first six
-TASKS.md items are implemented; the overall goal remains incomplete.
-SPEC.md is unchanged. No push, tag, release, or remote change occurred.
+Shipped locally: the first seven TASKS.md items. Status and history code:
+5ad0ed5. SPEC.md is unchanged. No push, tag, release, or remote change.
+The overall goal remains incomplete.
 
-Configuration now supplies shared hardware defaults, XDG paths on every OS,
-strict TOML overlays, custom lanes and regex precedence, weight limits,
-memory policy, and `config init|show|path|validate`. Initialization preserves
-existing files and symlinks under contention. Config schemas for shims,
-reap, gc, cache, and browser are validated; their commands remain queued.
-Decisions and the schema are recorded in docs/architecture.md.
-
-Verified: final native `make check` and
+Verified: native `make check` and
 `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
 Both passed vet, race tests, and five cgo-free cross-builds. golangci-lint
-was absent and explicitly skipped. Config's Windows test binary also
-cross-compiled. The final native binary's path/show/init/validate commands
-exited 0 in temporary HOME/XDG paths; initialized TOML matched shown defaults.
-This machine resolved build=3, encode=2, install=1, ml=1, render=2.
+was unavailable and explicitly skipped. The Windows CLI test binary also
+cross-compiled; Windows runtime remains unverified.
 
-A built-CLI smoke launched 20 jobs auto-matched to a configured two-slot
-lane. The jobs measured active=0, peak=2; all 20 history records named that
-lane and exit=0. Weight 3 was rejected with exit=2; differently cased keys
-failed validation with exit=1. BATON=off bypassed damaged config and
-preserved exit=37. Unit coverage includes inheritance, custom precedence,
-round trips, invalid keys/types/regexes/durations/paths, concurrent init,
-symlink preservation, overrides, and disabled gates retaining slot limits.
-Existing concurrency, crash, signal, terminal, and RSS tests remain green.
+`status` now reports configured and active ad-hoc lanes, kernel-held slot
+counts, running jobs, ordered waiters, identity, runtime, RSS, RAM, swap,
+and pressure. It supports human tables, JSON, compact lines, and watch.
+Readers leave stale state untouched and create no directories or locks.
+`history` reads both retained segments, filters by completion time and lane,
+and prints tables or JSONL. Invalid data fails with file and line before
+printing results. Architecture choices are in docs/architecture.md.
 
-Next: complete only `status` (--json, --watch, --line) and `history`.
-Read SPEC.md, TASKS.md, this file, docs/architecture.md, internal/config,
-internal/runner/store.go, and queue/lane storage before writing tests.
-Reuse config policy and XDG paths. Add read interfaces where needed; do
-not duplicate configuration or start shim/reap/gc work.
+A built native CLI smoke used temporary HOME/XDG paths: one weighted job
+occupied two slots, high-priority and normal waiters appeared in order,
+and RSS was nonzero. Human, JSON, and compact status output passed.
+Watch emitted two valid JSON frames and exited 0 on SIGTERM. After release,
+status was idle and filtered history contained three successful jobs.
+Appending an incomplete fourth history line produced exit 1, empty stdout,
+and history.jsonl:4. All processes belonged to the test.
 
-Pending: native Windows runtime and hosted CI remain unverified. Windows
-interruption kills only the owned root command. RSS sampling can miss
-short-lived or reparented descendants. Killing baton with SIGKILL releases
-slots but can leave a child alive. Config initialization requires hard-link
-support and fails safely without it. Later commands, docs/distribution,
-stress targets, and the final gate remain queued.
+Red-first checks caught the missing commands and a live ticket hidden when
+its JSON was missing. A concurrent rotation test exposed history readers
+holding the writer guard through JSON parsing. The fix copies both segments
+under the guard and parses after release. Restoring the old guard behavior
+in a temporary source copy failed the writer deadline at five seconds; the
+corrected race test passed in about two seconds. An earlier Docker run with
+the old test binary was stopped; the final corrected Docker gate passed.
+
+Pending: complete only `shim install|uninstall|list`, fast paths, recursion
+protection, BATON=off, and test f. First read SPEC.md, TASKS.md, this file,
+docs/architecture.md, the config schema/paths, and command dispatch. Reuse
+validated config through narrow read projections. Do not start reap, gc,
+cache, browser, or init work.
+
+Existing limits remain: native Windows signal/runtime and hosted CI are
+unverified; the required macos-13 hosted runner is retired. RSS sampling
+can miss short-lived or reparented descendants. SIGKILL releases slots but
+can leave descendants. Status spans multiple observations, not a global
+transaction. Watch loads configuration once; restart it after config edits.
