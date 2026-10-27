@@ -17,9 +17,10 @@ Open connections prevent idle shutdown. HTTP discovery and status polling do
 not keep it alive. `stop` disconnects every client. Browser data is temporary;
 close your own pages and contexts when a job finishes.
 
-`status` or `endpoint` racing startup or shutdown can fail with
-`browser starting or unavailable` while the lifetime lock is held without a
-session file. Retry after the transition.
+Commands wait through a missing session file while the supervisor holds its
+lifetime lock, up to the 15-second command deadline. After shutdown, `status`
+reports stopped and `endpoint` fails because no browser is running. Corrupt
+session metadata and other errors fail immediately.
 
 ## Configuration
 

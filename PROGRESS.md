@@ -1,56 +1,56 @@
 # Progress
 
-Shipped locally: sixteen of seventeen TASKS.md items, through Stress.
-Stress implementation: 062b965. Only Stress was completed this iteration.
-SPEC.md is unchanged. No push, tag, release, or remote change was made.
-The overall goal remains incomplete.
+Not verified: Final gate remains open. All three public README install
+commands fail. Source/release/tap publication is forbidden in this task.
 
-Verified: native `make check` and
+Shipped locally: sixteen of seventeen TASKS.md items, plus a browser fix
+found during Final gate. SPEC.md, README.md, and TASKS.md are unchanged.
+No push, tag, release, or remote change was made.
+
+Verified: post-fix native `make check` and
 `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
-Both passed vet, race tests, and five cgo-free cross-builds, including the
-stress helper. golangci-lint was unavailable and skipped. Native Go was
-1.27.0 darwin/arm64, macOS 27.0.1 (26A434).
+Both passed vet, race tests, and all five cgo-free cross-builds. Lint was
+unavailable and skipped. Native Go was 1.27.0 darwin/arm64, macOS 27.0.1.
 
-The resumed stress draft was inspected against SPEC.md and its raw artifacts.
-The default workload was then rerun on this machine: four 256 MiB workers,
-45-second holds, one queued slot, memory gate enabled, max_wait 30 seconds.
-`scripts/stress.sh --output .build/stress-resume-native` exited 0 and printed
-PASS. Sequential/unqueued/queued wall times were 180.761/45.193/211.773 seconds.
-Queued time was 1.172 times sequential; independent overlap was 1/4/1.
-All twelve jobs completed, sampled swap growth was zero, and observed kill
-counts were zero. All samples reported warning pressure; all four queued jobs
-used timeout admission. The unqueued baseline passed too. This proves the
-measured bounds, not reduced pressure under overload or recovery admission.
+A lifecycle repeat failed twice in twenty runs: the supervisor had removed
+session.json but still held browser.lock. A deterministic status/stop test
+failed before the fix and passed after it. Management commands now wait
+through that interval within the existing deadline. Deadline and corrupt-JSON
+checks passed. The unchanged CLI lifecycle test then passed all twenty runs.
+An owned headless Chrome returned Chrome/156.0.8078.48 through real CDP and
+stopped cleanly. Only missing-session observations are retried.
 
-The repeat's 2,192 raw samples, twelve allocation/page-touch records, kernel
-log completion counts, four finished history records, timeout warnings, and
-native binary SHA-256 were independently checked. The five committed JSON
-results retain native passes, a failed short-workload smoke, a Linux container
-pass, and a failed bind-mount run. Docs explain each result and its limits.
-A fresh native build matched the benchmark hash; Docker's cross-build output
-had a different hash and was not substituted for that native comparison.
+All nine README shell blocks were rerun under private HOME/XDG/Go paths.
+A copied Homebrew runtime kept tap writes in a temporary prefix. Sixteen
+of nineteen invocations passed; all twenty-one behavior assertions passed.
+The other three invocations failed: Homebrew has no baton formula; the raw
+installer URL returned HTTP 404 (curl exit 56); Go found no latest version.
+A fresh GitHub release query returned zero releases. All three failures
+remain part of the Final gate result.
 
-The helper isolates HOME/XDG and active scheduler state, uses owned child
-pipes/signals for cancellation, and archives closed evidence. Tests cover
-threshold boundaries, missing observations, process overlap, timeout cleanup,
-an unaffected sentinel, launcher isolation/exit codes, and state placement.
-Captured red logs precede the implementation and the cache/state fixes.
-Shell syntax, formatting, and diff checks passed. no-ai-slop final pass applied.
+Pending: public installation prerequisites and successful reruns of those
+three commands. Final gate stays unchecked; STATUS: DONE was not written.
+See [the verification report](docs/verification.md) for commands and evidence.
 
-Pending: only Final gate. Re-run both full gates and every README command.
-Do not count prior unit tests, local archives, or documented recipes as proof
-of hosted release availability, installed tools, Windows runtime, a rendered
-VHS recording, or real renderer/model/client flows.
+The prior stress task remains complete: native default runs printed PASS,
+including 211.773 seconds queued / 180.761 seconds sequential (1.172), overlap
+1/4/1, zero sampled swap growth, and zero observed kills. All samples were
+warning pressure and every queued job used timeout admission; the unqueued
+baseline also passed. [Benchmarks](docs/benchmarks.md) retain the measured
+scope and failed smokes. Stress was not rerun during this iteration.
 
-Open risks: this Docker host bind mount admitted concurrent exclusive flock;
-use native temporary state, as the helper does. Core locks/queue are unchanged.
-A prior browser shutdown/status race remains for Final gate review. Hosted CI
-still includes retired macos-13 per SPEC.md; neither local gate proves that
-hosted matrix green. Kernel logs and 200 ms samples can miss events/spikes.
+Open risks: the Docker host bind mount previously admitted concurrent flock;
+active state must use working local locks. Hosted CI retains retired macos-13
+per SPEC.md. Hosted workflows, Windows runtime, VHS rendering, linked
+renderer/model recipes, and lint remain unverified. Browser control transport
+errors still fail immediately.
 
-Evidence: .yoyo/stress-resume-{native-check,linux-check,native,audit,
-repeat-audit}.log; earlier .yoyo/stress-*.log; raw .build/stress-* artifacts.
-Published binaries, taps, workflows, and services were not changed.
+Evidence: `.yoyo/final-{native,linux}-fixed-check.log`,
+`.yoyo/final-browser-{repeat,repeat-green,transition-red,tests,real}.log`,
+`.yoyo/final-readme.log`, `.yoyo/final-readme/`, and `.yoyo/final-github.log`.
+Earlier stress evidence remains `.yoyo/stress-*` and `.build/stress-*`.
 
-Next: read .yoyo/loop-state.md, SPEC.md, TASKS.md, and this file. Complete only
-Final gate; start by enumerating README commands and their required fixtures.
+Next: the caller must resolve the publication prerequisite. Do not repeat
+the same failed public checks or weaken Final gate while remote writes
+remain forbidden. After authorized publication outside this task, rerun
+both full gates and every README command before checking it off.

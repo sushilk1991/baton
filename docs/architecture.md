@@ -1075,3 +1075,19 @@ an improvement when the unqueued baseline also passes. Raw samples, job
 records, warning logs, event data, config, history, and a binary SHA-256 remain
 beside the machine-readable result. `docs/benchmarks.md` records real runs,
 including a failed short-workload smoke, separately from synthetic tests.
+
+## Final-gate browser observation
+
+A repeated lifecycle test exposed the shutdown interval between removing
+`session.json` and releasing `browser.lock`. `status` and `stop` previously
+returned a missing-file error during that interval. Management commands now
+retry that missing-session observation within their existing 15-second
+deadline. They recheck the lifetime lock each time, so shutdown resolves to
+stopped and startup resolves to a ready session. Invalid JSON, control errors,
+and other failures still return immediately. Observation neither starts a
+supervisor nor signals a process.
+
+```text
+session removed -> lifetime lock held -> observer waits
+cleanup ends    -> lifetime lock free -> observer reports stopped
+```

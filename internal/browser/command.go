@@ -111,7 +111,7 @@ func manage(root, action string) (string, error) {
 		}
 		defer guard.Close()
 	}
-	s, view, err := observe(root)
+	s, view, err := observeReady(ctx, root)
 	if action == "stop" && errors.Is(err, errOrphan) {
 		lease, lockErr := lockfile.Try(filepath.Join(root, "browser.lock"))
 		if lockErr != nil {
@@ -163,6 +163,23 @@ func acquire(ctx context.Context, path string) (*lockfile.Lock, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
+		case <-time.After(pollTime):
+		}
+	}
+}
+
+func observeReady(ctx context.Context, root string) (session, snapshot, error) {
+	// Startup and shutdown briefly hold the lifetime lock without a session.
+	// Reobserve until ownership settles; corrupt metadata still fails at once.
+	for {
+		s, view, err := observe(root)
+		if !errors.Is(err, os.ErrNotExist) {
+			return s, view, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return s, view, fmt.Errorf("%w: %v", ctx.Err(), err)
 		case <-time.After(pollTime):
 		}
 	}
