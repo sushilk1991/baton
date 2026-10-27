@@ -1,43 +1,43 @@
 # Progress
 
-Done: scaffold, lanes/slots, fair queues, pressure admission, and `baton run`.
-Commit da3e5a3 admits through queue and memory policy, forwards Unix signals to
-the child group, preserves stdio and exit status, restores terminal control,
-and records identity, JSONL history, process-tree RSS, and memory predictions.
-Policy and failure boundaries are recorded in docs/architecture.md.
-Exactly the first five TASKS.md items are implemented; overall work continues.
+Done: scaffold, lanes/slots, fair queues, pressure admission, `baton run`,
+and configuration. Config implementation: 85068e2. Exactly the first six
+TASKS.md items are implemented; the overall goal remains incomplete.
+SPEC.md is unchanged. No push, tag, release, or remote change occurred.
 
-Verified: native `make check` and
-`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0
-on the final implementation. Vet, race tests, and all five cgo-free builds
-passed. golangci-lint is absent and was explicitly skipped. New subprocess
-tests measured 20 commands with a two-slot peak, SIGKILL-to-admission in
-254.4055 ms, exact SIGINT/SIGTERM/SIGHUP delivery through two generations,
-queued cancellation, exit codes, stdio, terminal input/foreground restoration,
-process-tree RSS, and learned-budget reuse. One captured tree peak was
-46891008 bytes, reused as the next run's memory budget. Unit tests cover
-concurrent history writers, rotation, invalid predictions, matching, identity,
-memory units, and wait-observer failures.
+Configuration now supplies shared hardware defaults, XDG paths on every OS,
+strict TOML overlays, custom lanes and regex precedence, weight limits,
+memory policy, and `config init|show|path|validate`. Initialization preserves
+existing files and symlinks under contention. Config schemas for shims,
+reap, gc, cache, and browser are validated; their commands remain queued.
+Decisions and the schema are recorded in docs/architecture.md.
 
-Windows runner and CLI test binaries also cross-compiled.
+Verified: final native `make check` and
+`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
+Both passed vet, race tests, and five cgo-free cross-builds. golangci-lint
+was absent and explicitly skipped. Config's Windows test binary also
+cross-compiled. The final native binary's path/show/init/validate commands
+exited 0 in temporary HOME/XDG paths; initialized TOML matched shown defaults.
+This machine resolved build=3, encode=2, install=1, ml=1, render=2.
 
-The built native binary also passed a terminal smoke test and 20 parallel
-`run --lane render` commands: job-measured active=0, peak=2 after completion.
-Its isolated state contained 21 valid JSONL records, including a separate
-stdio command with exit=37, stdout=out:unchanged, stderr=err. All CLI and
-process tests used temporary HOME/XDG roots. Test-created orphans from failed
-fixtures were terminated; no unrelated processes were signaled.
+A built-CLI smoke launched 20 jobs auto-matched to a configured two-slot
+lane. The jobs measured active=0, peak=2; all 20 history records named that
+lane and exit=0. Weight 3 was rejected with exit=2; differently cased keys
+failed validation with exit=1. BATON=off bypassed damaged config and
+preserved exit=37. Unit coverage includes inheritance, custom precedence,
+round trips, invalid keys/types/regexes/durations/paths, concurrent init,
+symlink preservation, overrides, and disabled gates retaining slot limits.
+Existing concurrency, crash, signal, terminal, and RSS tests remain green.
 
-Next: complete only the config item. Read SPEC.md, TASKS.md, this file,
-internal/runner/options.go, internal/runner/run.go, and docs/architecture.md.
-Introduce TOML and shared hardware defaults/XDG paths, wire runner policy to
-config, and add `config init|show|path|validate`. Keep existing run/process
-coverage. Do not start status/history commands in that iteration.
+Next: complete only `status` (--json, --watch, --line) and `history`.
+Read SPEC.md, TASKS.md, this file, docs/architecture.md, internal/config,
+internal/runner/store.go, and queue/lane storage before writing tests.
+Reuse config policy and XDG paths. Add read interfaces where needed; do
+not duplicate configuration or start shim/reap/gc work.
 
 Pending: native Windows runtime and hosted CI remain unverified. Windows
-interruption currently kills only the owned root command. RSS sampling can
-miss short-lived or reparented descendants. Killing baton itself with SIGKILL
-releases slots but can leave its child alive; later reap work handles those
-orphans. Config, remaining commands, docs/distribution, stress targets, and
-the final gate are still queued. SPEC.md is unchanged. No push, tag, release,
-or remote change occurred.
+interruption kills only the owned root command. RSS sampling can miss
+short-lived or reparented descendants. Killing baton with SIGKILL releases
+slots but can leave a child alive. Config initialization requires hard-link
+support and fails safely without it. Later commands, docs/distribution,
+stress targets, and the final gate remain queued.
