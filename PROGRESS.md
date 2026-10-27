@@ -1,60 +1,56 @@
 # Progress
 
-Shipped locally: fifteen of seventeen TASKS.md items, through Distribution.
-Distribution implementation: f5cf46d. Only Distribution was completed this
-iteration. SPEC.md is unchanged. No push, tag, release, or repository remote
-change was made. The overall goal remains incomplete.
+Shipped locally: sixteen of seventeen TASKS.md items, through Stress.
+Stress implementation: 062b965. Only Stress was completed this iteration.
+SPEC.md is unchanged. No push, tag, release, or remote change was made.
+The overall goal remains incomplete.
 
 Verified: native `make check` and
 `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
-Both passed vet, race tests, and all five cgo-free cross-builds.
-golangci-lint was unavailable and skipped. Native Go was 1.27.0 darwin/arm64.
+Both passed vet, race tests, and five cgo-free cross-builds, including the
+stress helper. golangci-lint was unavailable and skipped. Native Go was
+1.27.0 darwin/arm64, macOS 27.0.1 (26A434).
 
-GoReleaser v2.19.0 validated the config and built a local snapshot with
-five archives and SHA-256 checksums. Every archive's digest and exact
-contents passed inspection. The native archive installed through the real
-installer under temporary HOME/XDG paths with a fixture download boundary;
-its binary ran help and a command. The packaged Linux/arm64 binary ran
-help and a command inside golang:1.27 Docker. Both exposed CGO_ENABLED=0
-in their build information. Linux/arm64 was statically linked.
+The resumed stress draft was inspected against SPEC.md and its raw artifacts.
+The default workload was then rerun on this machine: four 256 MiB workers,
+45-second holds, one queued slot, memory gate enabled, max_wait 30 seconds.
+`scripts/stress.sh --output .build/stress-resume-native` exited 0 and printed
+PASS. Sequential/unqueued/queued wall times were 180.761/45.193/211.773 seconds.
+Queued time was 1.172 times sequential; independent overlap was 1/4/1.
+All twelve jobs completed, sampled swap growth was zero, and observed kill
+counts were zero. All samples reported warning pressure; all four queued jobs
+used timeout admission. The unqueued baseline passed too. This proves the
+measured bounds, not reduced pressure under overload or recovery admission.
 
-Installer tests first failed because the scripts were absent, then passed.
-They pipe the installer into sh and cover all four Unix platform mappings,
-version/directory overrides, bad/missing/duplicate digests, failed downloads,
-invalid/empty archives, unsupported input, and symlink protection. Failed
-upgrades preserved the existing binary. Tests use private HOME, USERPROFILE,
-and every inherited/standard XDG path; no unowned process was signalled.
+The repeat's 2,192 raw samples, twelve allocation/page-touch records, kernel
+log completion counts, four finished history records, timeout warnings, and
+native binary SHA-256 were independently checked. The five committed JSON
+results retain native passes, a failed short-workload smoke, a Linux container
+pass, and a failed bind-mount run. Docs explain each result and its limits.
+A fresh native build matched the benchmark hash; Docker's cross-build output
+had a different hash and was not substituted for that native comparison.
 
-The formula renderer rejects incomplete or ambiguous manifests before
-emitting output. Homebrew's actual class loader validated all four target
-URLs and digests from the rendered snapshot formula. Ruby and shell syntax,
-YAML parsing, GoReleaser check, actionlint v1.7.12, and git diff checks passed.
-no-ai-slop final pass applied to the changed prose. Architecture records the
-fixed asset names, installer publication, formula handling, and draft policy.
+The helper isolates HOME/XDG and active scheduler state, uses owned child
+pipes/signals for cancellation, and archives closed evidence. Tests cover
+threshold boundaries, missing observations, process overlap, timeout cleanup,
+an unaffected sentinel, launcher isolation/exit codes, and state placement.
+Captured red logs precede the implementation and the cache/state fixes.
+Shell syntax, formatting, and diff checks passed. no-ai-slop final pass applied.
 
-The first Homebrew validation used an obsolete factory method. Its corrected
-instance loader required a tap; disabling API installation then triggered a
-core-tap clone. Only that owned validator and its descendants received TERM.
-No core tap remained. Class-only loading with private HOME/cache then passed;
-it neither instantiated the formula nor installed it.
+Pending: only Final gate. Re-run both full gates and every README command.
+Do not count prior unit tests, local archives, or documented recipes as proof
+of hosted release availability, installed tools, Windows runtime, a rendered
+VHS recording, or real renderer/model/client flows.
 
-Pending: Stress next, then the Final gate. Published release installation,
-tap installation/tests, hosted workflow execution, and Windows runtime remain
-unverified. The release workflow only prepares drafts and attaches a formula;
-it does not publish or modify the tap. Existing CI retains the spec-required,
-retired macos-13 runner; the draft workflow gates on current runners.
+Open risks: this Docker host bind mount admitted concurrent exclusive flock;
+use native temporary state, as the helper does. Core locks/queue are unchanged.
+A prior browser shutdown/status race remains for Final gate review. Hosted CI
+still includes retired macos-13 per SPEC.md; neither local gate proves that
+hosted matrix green. Kernel logs and 200 ms samples can miss events/spikes.
 
-Prior open risk: browser status can race shutdown between session removal
-and lifetime-lock release. It did not fail this iteration's native or Linux
-gate. No runtime Go code or existing assertion changed here. Keep this
-observation for the Final gate; one green run does not establish stability.
-Rendered VHS demo and full external renderer/model/client flows also remain
-unverified. Benchmark results are still pending.
+Evidence: .yoyo/stress-resume-{native-check,linux-check,native,audit,
+repeat-audit}.log; earlier .yoyo/stress-*.log; raw .build/stress-* artifacts.
+Published binaries, taps, workflows, and services were not changed.
 
-Evidence: ignored .yoyo/distribution-{red,tests,native-check,linux-check,
-snapshot,smoke,linux-smoke,homebrew,actionlint}.log. Snapshot artifacts are in
-ignored dist/. Smoke and formula-check helpers remain under .yoyo/.
-
-Next: read SPEC.md and the Stress item in TASKS.md. Implement only
-scripts/stress.sh and record measured results in docs/benchmarks.md. Preserve
-fake-HOME and owned-process boundaries; do not push or publish.
+Next: read .yoyo/loop-state.md, SPEC.md, TASKS.md, and this file. Complete only
+Final gate; start by enumerating README commands and their required fixtures.
