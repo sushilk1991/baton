@@ -87,4 +87,6 @@ func isolateHome(t *testing.T) {
 	for key := range keys {
 		t.Setenv(key, t.TempDir())
 	}
+	t.Setenv("BATON", "")
+	t.Setenv("USERPROFILE", os.Getenv("HOME"))
 }

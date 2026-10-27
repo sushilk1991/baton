@@ -1,32 +1,41 @@
 # Progress
 
-Done: scaffold, weighted lanes/slots, fair queues, and pressure admission.
-Commit aa40526 adds macOS, Linux, and Windows providers plus a gate that
-retains queue position, requires stable recovery and memory headroom, and
-bypasses only memory policy after max_wait with a warning. Policy choices
-and OS interfaces are recorded in docs/architecture.md.
+Done: scaffold, lanes/slots, fair queues, pressure admission, and `baton run`.
+The runner admits through queue and memory policy, forwards Unix signals to
+the child group, preserves stdio and exit status, restores terminal control,
+and records identity, JSONL history, process-tree RSS, and memory predictions.
+Policy and failure boundaries are recorded in docs/architecture.md.
+Exactly the first five TASKS.md items are implemented; overall work continues.
 
-Verified: `make check` and
-`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` both exited
-0 after the pressure implementation. Vet, race tests, and all five cgo-free
-cross-builds passed. golangci-lint is absent and was explicitly skipped.
-Real subprocesses verified warn-to-normal recovery, FIFO preservation, and
-`WARNING: max_wait 100ms reached` under persistent critical pressure. Unit
-tests cover interrupted recovery, strict headroom, overflow, cancellation,
-probe failures, occupied-slot safety, warning-write failures, parent cgroup
-limits, and malformed counters. The native macOS provider returned valid
-RAM, swap, and warning pressure. A real Docker container with a 1073741824
-byte memory.max reported TotalBytes:1073741824 and AvailableBytes:895901696.
-The Windows pressure test binary also cross-compiled successfully.
+Verified: native `make check` and
+`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0
+on the final implementation. Vet, race tests, and all five cgo-free builds
+passed. golangci-lint is absent and was explicitly skipped. New subprocess
+tests measured 20 commands with a two-slot peak, SIGKILL-to-admission in
+254.4055 ms, exact SIGINT/SIGTERM/SIGHUP delivery through two generations,
+queued cancellation, exit codes, stdio, terminal input/foreground restoration,
+process-tree RSS, and learned-budget reuse. One captured tree peak was
+46891008 bytes, reused as the next run's memory budget. Unit tests cover
+concurrent history writers, rotation, invalid predictions, matching, identity,
+memory units, and wait-observer failures.
 
-Next: implement only the next TASKS.md item, `baton run`: execution, process
-groups/signals, exit codes, notices, automatic lanes, identity, history,
-process-tree peak RSS, and learned memory. Read cmd/baton/main.go and
-internal/admission/gate.go first; write failing real-process tests before
-wiring execution through queue tickets and the memory gate.
+The built native binary also passed a terminal smoke test and 20 parallel
+`run --lane render` commands: job-measured active=0, peak=2 after completion.
+Its isolated state contained 21 valid JSONL records, including a separate
+stdio command with exit=37, stdout=out:unchanged, stderr=err. All CLI and
+process tests used temporary HOME/XDG roots. Test-created orphans from failed
+fixtures were terminated; no unrelated processes were signaled.
 
-Pending: no CLI scheduling command exists yet. Process tests exercise the
-internal APIs; literal `baton run` integrations remain in the run task.
-Native Windows runtime, hosted CI, and machine-level stress targets remain
-unverified. The existing CI runner limitation remains documented in
-docs/architecture.md. No push, tag, release, or remote change was made.
+Next: complete only the config item. Read SPEC.md, TASKS.md, this file,
+internal/runner/options.go, internal/runner/run.go, and docs/architecture.md.
+Introduce TOML and shared hardware defaults/XDG paths, wire runner policy to
+config, and add `config init|show|path|validate`. Keep existing run/process
+coverage. Do not start status/history commands in that iteration.
+
+Pending: native Windows runtime and hosted CI remain unverified. Windows
+interruption currently kills only the owned root command. RSS sampling can
+miss short-lived or reparented descendants. Killing baton itself with SIGKILL
+releases slots but can leave its child alive; later reap work handles those
+orphans. Config, remaining commands, docs/distribution, stress targets, and
+the final gate are still queued. SPEC.md is unchanged. No push, tag, release,
+or remote change occurred.

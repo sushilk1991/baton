@@ -253,3 +253,31 @@ func isolateHome(t *testing.T) {
 		t.Setenv(key, t.TempDir())
 	}
 }
+
+func TestWaitObserverFailure(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "x", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := errors.New("notice stream closed")
+	gate := newGate(t, fakeProvider{level: pressure.Warn}, Options{
+		OnWait: func(sample pressure.Snapshot, err error) error {
+			if err != nil || sample.Level != pressure.Warn {
+				t.Fatalf("observer sample %+v, %v", sample, err)
+			}
+			return closed
+		},
+	})
+	lease, err := gate.Acquire(context.Background(), ticket, 0, &bytes.Buffer{})
+	if lease != nil || !errors.Is(err, closed) {
+		t.Fatalf("failed notice: lease %v, error %v", lease, err)
+	}
+	if _, err := ticket.TryAcquire(); !errors.Is(err, queue.ErrClosed) {
+		t.Fatalf("failed notice retained ticket: %v", err)
+	}
+}

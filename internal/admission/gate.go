@@ -29,6 +29,9 @@ type Options struct {
 	PollInterval time.Duration
 	// RecoveryWindow requires uninterrupted healthy observations after blocking.
 	RecoveryWindow time.Duration
+	// OnWait observes a blocked retry, including waits after max_wait.
+	// A returned error cancels the wait and relinquishes the ticket.
+	OnWait func(pressure.Snapshot, error) error
 	// MarginBytes reserves memory beyond the declared or predicted budget.
 	MarginBytes uint64
 }
@@ -91,7 +94,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			return nil, err
 		}
 		if !ready && !expired {
-			if err := gate.pause(ctx, deadline); err != nil {
+			if err := gate.wait(ctx, deadline, sample, sampleErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -99,7 +102,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 
 		lease, err := ticket.TryAcquire()
 		if errors.Is(err, queue.ErrBusy) {
-			if err := gate.pause(ctx, deadline); err != nil {
+			if err := gate.wait(ctx, deadline, sample, sampleErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -141,6 +144,15 @@ func (state *waitState) ready(snapshot pressure.Snapshot, err error, memory, mar
 		state.healthySince = now
 	}
 	return now.Sub(state.healthySince) >= recovery
+}
+
+func (gate *Gate) wait(ctx context.Context, deadline time.Time, sample pressure.Snapshot, sampleErr error) error {
+	if gate.options.OnWait != nil {
+		if err := gate.options.OnWait(sample, sampleErr); err != nil {
+			return err
+		}
+	}
+	return gate.pause(ctx, deadline)
 }
 
 func (gate *Gate) pause(ctx context.Context, deadline time.Time) error {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/sushilk1991/baton/internal/runner"
 )
 
 const (
@@ -16,7 +18,8 @@ const (
 
 Usage: baton <command> [arguments]
 
-Commands are not implemented yet.
+Commands:
+  run    Queue and execute a command
 `
 )
 
@@ -32,6 +35,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	if len(args) == 1 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
 		return printHelp(stdout)
+	}
+
+	// Keep command execution below argument dispatch.
+	if args[0] == "run" {
+		return runner.Run(args[1:], os.Stdin, stdout, stderr)
 	}
 
 	// Fail explicitly until each command exists, so agents cannot infer success.

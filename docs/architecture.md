@@ -222,3 +222,94 @@ They cover warn-to-normal recovery, interrupted recovery, strict headroom,
 oversized requests, cancellation, timeout warnings, occupied-slot safety,
 warning-write failures, cgroup parent limits, and malformed OS data. Native
 provider tests sample the host on macOS and Linux without creating pressure.
+
+## Command execution
+
+`cmd/baton` delegates `run` to `internal/runner`. The runner owns argument
+validation, identity, job records, and execution. It calls admission and the
+queue for scheduling; OS drivers own signals, terminals, and RSS counters.
+Only `runner.Run` is exposed to the command package.
+
+```text
+argv -> matcher -> ticket -> memory gate -> slot lease -> child group
+          |                       |                         |
+       no match ---------------> run                       RSS samples
+                                                            |
+queued/running JSON <----------------------------------------+
+                                                            |
+                                     finish -> history + EWMA -> release
+```
+
+Arguments reach `exec.Command` without shell rewriting. A shell script is
+opaque to automatic classification: use `--lane` for `sh -c` and similar
+wrappers. Defaults match direct tools and launchers such as `npx remotion`
+and `pnpm exec playwright`. Rule order is encode, render, ML, install, build.
+Unmatched commands skip queue and pressure admission but retain history and
+learning. `BATON=off` skips scheduling and telemetry.
+
+Until the config item supplies TOML, default capacity follows the spec's
+RAM/core formulas; unknown lane names have one slot. Render capacity uses
+effective RAM from the pressure provider, with one slot if probing fails.
+`--weight` must fit the lane. `--mem` accepts bytes and binary K/M/G units,
+including decimal quantities that resolve to whole bytes, such as `1.5G`.
+Explicit memory overrides a learned prediction. Cache flags belong to the
+later cache item.
+
+Unix children get a separate process group. SIGINT, SIGTERM, and SIGHUP go
+to that group, including descendants that remain in it. Startup and signal
+delivery share a mutex: a signal before startup cancels admission, while a
+signal after startup reaches the child. A foreground terminal is handed to
+the child's group before exec and restored after wait. Background callers
+never take the terminal. Pipe/file descriptors pass through directly.
+Windows creates a process group but console interruption currently kills
+only the command, best effort. Native Windows signal behavior is unverified.
+
+Exit codes pass through. Unix signal exits use `128 + signal`; lookup
+failure returns 127, other launch failure 126, and invalid arguments 2.
+Ordinary waiting notices appear only on blocked retries, at most once every
+two seconds, on stderr. They report lane, pressure, and swap. `--quiet`
+suppresses these notices; the gate's max_wait warning remains visible.
+Admission's optional wait observer also runs during slot waits after
+max_wait, so expiring memory policy does not suppress contention notices.
+Observer I/O failure cancels and removes the ticket.
+
+Each job has a random ID, owner lock, and atomic JSON record under `jobs/`.
+Queued records include label, priority, weight, agent, user, cwd, repository,
+and memory budget. Running records add child PID and current/peak RSS.
+Normal completion removes the record and owner file. SIGKILL can leave
+stale records; their released kernel owner locks permit later cleanup.
+Agent detection prefers `--agent`, then Claude Code, Codex, Cursor, Gemini,
+Aider, OpenCode, Goose, `TERM_PROGRAM`, and finally `terminal`. The nearest
+`.git` directory or worktree pointer identifies the repository root.
+
+The command signature is SHA-256 of JSON-encoded argv and cwd. This preserves
+argument boundaries and separates project builds. Plaintext argv is not
+persisted because arguments can contain credentials. RSS is sampled every
+100 ms across the root and its current descendants: Linux `/proc/*/stat`,
+macOS `ps -axo pid=,ppid=,rss=`, Windows Toolhelp plus working-set counters.
+Unix wait rusage also captures the root peak for short-lived commands.
+Sampling can miss short-lived or reparented descendants and inaccessible
+processes; it is a prediction, not an enforced memory limit.
+
+Completed records append to `history.jsonl` under a kernel guard shared
+with learning updates. At 10 MiB it rotates to `history.jsonl.1`, retaining
+one previous segment. `learned.json` stores an EWMA per signature with
+alpha 1/4; the first nonzero observation initializes it. A difference-based
+update avoids integer overflow. Temporary files and rename protect JSON
+snapshots. Persistence errors are reported separately and preserve the
+child's exit status. A crash between history append and learning may leave
+a stale prediction without corrupting the previous JSON snapshot.
+
+Killing baton with SIGKILL releases its slots but cannot run descendant
+cleanup. The child may survive until it exits or a later reap operation
+finds it. Tests terminate their own orphan group after measuring admission.
+A crash test must observe next-job admission before calling `Cmd.Wait` on
+the killed wrapper: inherited stderr pipes can stay open in its orphan.
+
+Real-process tests cover two-slot concurrency across 20 commands, SIGKILL
+recovery below one second, exact signal forwarding through two generations,
+queued cancellation, stdio and exit codes, terminal input and foreground
+restoration, process-tree RSS, and reuse of the learned budget. Concurrent
+history writers, rotation, corrupted predictions, matcher rules, identity,
+and memory units have unit coverage. Native CLI smoke tests additionally
+run the built binary with 20 render jobs and inspect its JSONL history.
