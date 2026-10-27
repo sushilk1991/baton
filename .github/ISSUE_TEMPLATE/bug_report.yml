@@ -1,0 +1,33 @@
+name: Bug report
+description: Report incorrect behavior with a minimal reproduction.
+body:
+  - type: markdown
+    attributes:
+      value: Do not paste secrets, agent settings, or integration manifests. Use SECURITY.md for vulnerabilities.
+  - type: input
+    id: environment
+    attributes:
+      label: Commit or version, OS, and architecture
+      placeholder: Commit SHA, macOS or Linux version, arm64 or amd64
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Use temporary HOME and XDG directories. Include exact commands and redacted relevant config.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+      description: Paste actual output and exit codes. Include status JSON if relevant, with private paths redacted.
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Concurrency and recovery context
+      description: Were other jobs running? Was a runner killed or interrupted? Which processes did the reproduction start?

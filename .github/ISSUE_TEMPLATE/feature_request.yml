@@ -1,0 +1,22 @@
+name: Feature request
+description: Describe a workload the current behavior cannot handle.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Workload and problem
+      description: Include the command, environment, current behavior, and why it is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Give a concrete before/after example and a way to verify it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and scope
+      description: What have you tried? Does this fit SPEC.md, or require a separate tool?

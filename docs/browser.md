@@ -17,6 +17,10 @@ Open connections prevent idle shutdown. HTTP discovery and status polling do
 not keep it alive. `stop` disconnects every client. Browser data is temporary;
 close your own pages and contexts when a job finishes.
 
+`status` or `endpoint` racing startup or shutdown can fail with
+`browser starting or unavailable` while the lifetime lock is held without a
+session file. Retry after the transition.
+
 ## Configuration
 
 Add settings to the file printed by `baton config path`:

@@ -920,3 +920,39 @@ leaves client-specific MCP registration to the user; the command is
 `baton mcp`. Integration tests exercise a real subprocess exchange, and a
 compiled-binary test executes the installed hook and its returned command
 with quoted argv before uninstalling, under temporary HOME/XDG roots.
+
+## Documentation
+
+Source builds are the current installation path. README release commands
+are explicitly preparatory: distribution and publication are separate queue
+items, and no release availability is inferred from a working checkout.
+Recipe commands require the reader's existing project, tools, inputs, and
+models. Persistent servers such as Ollama retain memory outside a CLI
+client's sampled tree; docs distinguish a reservation from a memory limit.
+README sleep examples use a two-second memory wait so the quick start stays
+bounded on an already pressured host. Real heavy-work recipes retain the
+lane default; the tiny demonstration jobs do not establish pressure safety.
+
+`scripts/config-reference.sh` generates `docs/defaults.toml` through the
+compiled CLI in an empty environment with temporary HOME/XDG paths. This
+avoids a second schema. Hardware-derived slot counts remain the generation
+host's snapshot, with formulas in configuration.md. The temporary cache path
+is replaced by a comment so copying the reference retains XDG resolution.
+
+The VHS tape uses a single-slot demo lane with memory gating disabled. It
+demonstrates slot serialization without allocating memory or claiming a
+pressure benchmark. The recording command isolates HOME before shell
+startup; the tape isolates its own state before any baton call. VHS literal
+strings use backticks when shell quotes are present; its lexer does not
+interpret backslash-escaped string delimiters. Parser validation and actual
+shell-command execution are separate checks from rendering the GIF.
+
+Manual run wrappers do not set the descendant shim admission marker. The
+docs therefore show one wrapping method at a time, or an outer reservation
+with `env BATON=off` for the child tree. This preserves outer scheduling
+without nested waits on the parent's slot.
+
+Community policies point to GitHub's private reporting entry point
+conditionally. Its availability is unverified; a dedicated private contact
+channel and response-time commitment remain unset. Release publication,
+machine benchmarks, and hosted CI proof belong to their separate gates.
