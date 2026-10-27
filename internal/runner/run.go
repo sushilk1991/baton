@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/sushilk1991/baton/internal/admission"
+	"github.com/sushilk1991/baton/internal/cache"
 	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/lane"
 	"github.com/sushilk1991/baton/internal/lockfile"
@@ -42,6 +43,8 @@ type streams struct {
 
 type options struct {
 	args     []string
+	cacheKey string
+	output   string
 	lane     string
 	label    string
 	agent    string
@@ -121,6 +124,17 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 		return control.waitCode(), err
 	}
 
+	cached, hit := checkCache(ctx, opts, ioSet.err)
+	if cached != nil {
+		defer cached.Close()
+	}
+	if hit {
+		job.Start = time.Now().UTC()
+		job.WaitNanos = job.Start.Sub(job.Queued).Nanoseconds()
+		job.End, job.Phase, job.CacheHit = job.Start, "finished", true
+		return 0, store.finish(context.Background(), job)
+	}
+
 	lease, err := admit(ctx, opts, store, &job, ioSet.err)
 	if err != nil {
 		return control.waitCode(), err
@@ -140,6 +154,12 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 		job.Phase = "running"
 		monitor(store, &job, command, done, ioSet.err)
 	})
+	// Cache failures cannot replace the child's status or discard useful work.
+	if cached != nil && code == 0 && runErr == nil {
+		if err := cached.Store(ctx); err != nil {
+			fmt.Fprintln(ioSet.err, "baton: cache store:", err)
+		}
+	}
 	job.End = time.Now().UTC()
 	job.ExitCode = code
 	job.Phase = "finished"
@@ -313,4 +333,23 @@ func monitor(store *store, job *jobRecord, command *exec.Cmd, done <-chan struct
 		case <-ticker.C:
 		}
 	}
+}
+
+// Cache lookup precedes admission: a restored artifact needs no heavy slot.
+func checkCache(ctx context.Context, opts options, out io.Writer) (*cache.Session, bool) {
+	if opts.cacheKey == "" {
+		return nil, false
+	}
+	cached, err := cache.Prepare(ctx, opts.cacheKey, opts.output, opts.args)
+	if err != nil {
+		fmt.Fprintln(out, "baton: cache lookup:", err)
+		return nil, false
+	}
+	hit, err := cached.Restore(ctx)
+	if err != nil {
+		_ = cached.Close()
+		fmt.Fprintln(out, "baton: cache restore:", err)
+		return nil, false
+	}
+	return cached, hit
 }

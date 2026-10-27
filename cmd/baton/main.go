@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/sushilk1991/baton/internal/cache"
 	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/gc"
 	"github.com/sushilk1991/baton/internal/reap"
@@ -30,6 +31,7 @@ Commands:
   shim    Install, list, or uninstall command wrappers
   reap    List or terminate aged orphaned heavy processes
   gc      List or delete aged regenerable intermediates
+  cache   List cached outputs or prune to the size cap
 `
 )
 
@@ -66,6 +68,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "gc" {
 		return gc.Run(args[1:], stdout, stderr)
+	}
+
+	if args[0] == "cache" {
+		return cache.Run(args[1:], stdout, stderr)
 	}
 
 	if args[0] == "shim" {

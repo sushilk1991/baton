@@ -22,6 +22,8 @@ func parse(args []string, out io.Writer) (options, error) {
 	flags.StringVar(&opts.lane, "lane", "auto", "lane name or auto")
 	flags.StringVar(&opts.label, "label", "", "job label")
 	flags.StringVar(&opts.agent, "agent", "", "agent identity override")
+	flags.StringVar(&opts.cacheKey, "cache-key", "", "comma-separated input globs for output caching")
+	flags.StringVar(&opts.output, "output", "", "single regular output file to cache")
 	priority := flags.String("priority", string(queue.Normal), "high, normal, or low")
 	flags.IntVar(&opts.weight, "weight", 1, "slots required")
 	memory := flags.String("mem", "", "memory budget, e.g. 4G or 512M (binary units)")
@@ -34,6 +36,9 @@ func parse(args []string, out io.Writer) (options, error) {
 	opts.priority = queue.Priority(*priority)
 	if len(opts.args) == 0 {
 		return opts, errors.New("usage: baton run [options] -- command [args...]")
+	}
+	if (opts.cacheKey == "") != (opts.output == "") {
+		return opts, errors.New("cache-key and output must be provided together")
 	}
 	var waitSet bool
 	flags.Visit(func(f *flag.Flag) {

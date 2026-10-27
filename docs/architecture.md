@@ -696,3 +696,79 @@ The Linux gate exposed an existing status publication race: a live ticket
 could join job metadata whose `queue_sequence` was still zero. Status now
 copies the authoritative sequence from that ticket. A regression fails
 without this assignment; no scheduling or status assertions were relaxed.
+
+## Command output cache
+
+`run --cache-key 'src/**,audio/*.wav' --output out/master.mp4 -- command`
+uses `internal/cache` before taking a heavy lane slot. Only a successful
+command with a readable regular output file is stored. A hit restores that
+file, skips execution, and records `cache_hit=true` in history without
+updating learned RSS. Missing output, changed inputs, or cache I/O failure
+prints a diagnostic and preserves the command's exit code. `BATON=off`
+skips cache access with scheduling and telemetry.
+
+Keys hash versioned JSON containing cwd, absolute output path, sorted input
+patterns, argv boundaries, and matched file names, permissions, lengths,
+and SHA-256 contents. Configured `cache.env` names include both their value
+and whether they were set. The allowlist defaults empty. No plaintext argv,
+environment, input names, or cwd is persisted in cache metadata. Callers
+must include every dependency that affects the artifact, including tool or
+configuration files; executable versions and unlisted environment are not
+automatically tracked.
+
+Globs are comma-separated relative slash patterns under cwd. `**` matches
+zero or more complete components; `*`, `?`, and character classes stay
+within one component. Each pattern must select at least one regular file.
+Absolute paths, parent traversal, and backslashes are rejected. Traversal
+starts at each pattern's literal prefix and rejects encountered symlinks.
+The output file and cache subtree are excluded so generated artifacts do
+not invalidate their own key. Only one regular output file is supported;
+directories and other side effects are not restored.
+
+```text
+inputs + argv + allowed env -> SHA-256 key -> kernel key lock
+                                                |
+                                  verify inputs and cached payload
+                                      /                     \
+                              atomic restore            lane admission
+                                   |                         |
+                              record hit                execute command
+                                                             |
+                                               success + unchanged inputs
+                                                             |
+                                                 copy to private staging
+                                                             |
+                              global cache lock -> publish -> enforce cap
+```
+
+A persistent lock file per key serializes identical jobs through execution
+and storage. Different keys can execute concurrently. The global cache
+lock covers entry reads, restores, publication, listing, and eviction;
+lock order is key then global. Prune takes only global. Process death
+releases locks; lock files are never unlinked. Input hashes are checked
+after lock acquisition, before restore, and after execution. Callers must
+keep inputs stable during the command and give concurrent distinct jobs
+distinct output paths; this is not a filesystem sandbox.
+
+Entries contain an output copy and metadata with key, output digest, size,
+mode, and last-use timestamp. Files are synced before staging-directory
+rename. Incomplete staging cannot become a hit and is removed by the next
+store or prune. Payload digests are verified on each hit. Damaged entries
+become misses; prune removes malformed entries so corruption cannot prevent
+cap enforcement. No power-loss durability is promised: a lost cache entry
+requires regeneration.
+
+Restore creates a temporary hardlink in the output's parent and renames it
+over a regular destination. Cross-filesystem link failure falls back to a
+synced copy before rename. Directory and symlink destinations are rejected.
+A consumer that edits a restored hardlink in place also edits the cached
+inode; the next verification detects the change and regenerates the entry.
+Cached files are user-owned regenerable data, not protected against hostile
+same-user filesystem races. Atomic output replacement avoids this sharing.
+
+`cache ls` lists opaque keys, logical payload bytes, and last-use times.
+`cache prune` removes least recently used entries until `cache.max_size`
+is met; stores enforce the same cap. The default remains 10 GiB. Oversized
+individual outputs run normally but are not stored. Metadata, persistent
+lock files, filesystem overhead, and retained hardlinks outside the cache
+do not count toward the payload cap. Unrecognized cache-root files remain.
