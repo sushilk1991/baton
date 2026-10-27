@@ -135,3 +135,90 @@ before low, and dead-ticket cleanup after SIGKILL. Jobs record their own
 admission order while holding a slot. Unit tests cover aging, weighted head
 blocking, cancellation, concurrent registration, sequence recovery, and
 corrupt metadata.
+
+## Pressure and admission
+
+`internal/pressure` hides OS counters behind `Provider.Sample(ctx)`. A
+snapshot reports effective RAM, available RAM, host swap, and a normalized
+pressure level. Invalid counters and failed probes return errors.
+
+```text
+admission.Gate -> pressure.Provider -> OS counters
+      |
+      +-------> queue.Ticket -> lane -> lockfile
+
+enqueue -> sample -> memory fits and pressure normal -> try queue turn
+              ^                |                            |
+              +-- wait --------+                       slot lease
+              |
+              +-- max_wait -> warn and try queue turn
+```
+
+The gate takes an existing ticket and keeps its place throughout a memory
+wait. It takes no slots before the memory check. Every retry checks queue
+order and reserves the full weight through `Ticket.TryAcquire`. Cancellation
+removes the ticket. Gate state belongs to each `Acquire` call, so concurrent
+waiters can share one gate without sharing recovery timers.
+
+Policy choices left open by the spec:
+
+- Default safety margin: 512 MiB beyond declared or predicted memory.
+  Available RAM must strictly exceed their sum; subtraction avoids overflow.
+- After any pressure, headroom, or probe failure, require two seconds of
+  continuously healthy observations. A bad sample resets this recovery
+  window. Initially healthy jobs can enter immediately.
+- Poll every 250 ms. Default `max_wait` is 30 minutes, measured from the
+  start of `Gate.Acquire`, including time waiting for slots. Callers should
+  enqueue and start the gate together. At expiry only the memory check is
+  bypassed; queue priority, order, weight, and slot capacity still apply.
+- Failed probes delay admission until recovery or timeout. A timeout emits
+  one `WARNING` on admission, including the last probe error or counters.
+  A failed warning write releases the lease and returns an error. Ordinary
+  quiet-mode notices belong to the later CLI task; timeout warnings must
+  remain visible.
+- Linux and Windows classify available RAM below 10% as warning and below
+  5% as critical. Linux also warns at PSI `some avg10 >= 10` and marks
+  `>= 25` critical. These are baton policy thresholds, not OS guarantees.
+
+macOS uses fixed system paths for `sysctl -n hw.memsize
+kern.memorystatus_vm_pressure_level vm.swapusage` and `vm_stat`, with a
+two-second probe timeout and C locale. Available RAM is free plus inactive
+pages using the reported page size. The kernel pressure value is
+authoritative; inactive pages alone do not imply normal pressure. Swap is
+read separately from availability. The implementation needs no cgo. Apple's
+[pressure sysctl implementation](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_memorystatus_notify.c)
+maps the internal level to dispatch pressure values.
+
+Linux reads `/proc/meminfo` and `/proc/pressure/memory`. Missing PSI is
+allowed for kernels without it; malformed or unreadable PSI is an error.
+For cgroup v2, `/proc/self/cgroup` and `/proc/self/mountinfo` locate the
+current group's visible mount, including non-root mounts and escaped path
+names. Effective RAM and available RAM are capped by `memory.max` and
+`max(0, memory.max - memory.current)` at every visible ancestor. Parent
+usage includes siblings. The worst host or cgroup `memory.pressure` PSI is
+used. Missing controller limit files and unlimited `max` values add no cap;
+unreadable or invalid counters fail the probe. A v2 membership without a
+visible matching mount also fails. Swap counters describe the host, not a
+container's swap allowance. See the kernel's
+[PSI](https://docs.kernel.org/accounting/psi.html),
+[meminfo](https://docs.kernel.org/filesystems/proc.html), and
+[cgroup v2](https://docs.kernel.org/admin-guide/cgroup-v2.html) interfaces.
+
+Windows calls
+[GlobalMemoryStatusEx](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-globalmemorystatusex)
+through the Win32 ABI without cgo. It reports physical RAM availability.
+`MEMORYSTATUSEX` page-file fields are commit limits, so they are not reported
+as swap usage. Swap remains unavailable on Windows. Native Windows runtime
+verification remains pending; all release targets cross-build.
+
+These observations do not reserve memory across lanes or enforce budgets.
+Another process can allocate after a sample; cgroup ancestors hidden by a
+mount namespace cannot be inspected. Slot limits still bound concurrency.
+The later stress task measures whether the default policy meets the
+machine-level pressure and swap targets.
+
+Tests inject snapshots into real queue waiters and real subprocesses.
+They cover warn-to-normal recovery, interrupted recovery, strict headroom,
+oversized requests, cancellation, timeout warnings, occupied-slot safety,
+warning-write failures, cgroup parent limits, and malformed OS data. Native
+provider tests sample the host on macOS and Linux without creating pressure.

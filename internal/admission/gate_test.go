@@ -1,0 +1,255 @@
+package admission
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"math"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/sushilk1991/baton/internal/lane"
+	"github.com/sushilk1991/baton/internal/pressure"
+	"github.com/sushilk1991/baton/internal/queue"
+)
+
+func TestRecoveryHysteresis(t *testing.T) {
+	isolateHome(t)
+	now := time.Now()
+	var state waitState
+	normal := pressure.Snapshot{Level: pressure.Normal, TotalBytes: 1000, AvailableBytes: 800}
+	warn := normal
+	warn.Level = pressure.Warn
+	checks := []struct {
+		sample pressure.Snapshot
+		after  time.Duration
+		allow  bool
+	}{
+		{warn, 0, false},
+		{normal, time.Second, false},
+		{normal, 2*time.Second - time.Nanosecond, false},
+		{warn, 2 * time.Second, false},
+		{normal, 3 * time.Second, false},
+		{normal, 4 * time.Second, true},
+	}
+	for _, check := range checks {
+		if got := state.ready(check.sample, nil, 500, 100, time.Second, now.Add(check.after)); got != check.allow {
+			t.Fatalf("at %s: admission = %t, want %t", check.after, got, check.allow)
+		}
+	}
+}
+
+func TestMemoryHeadroom(t *testing.T) {
+	isolateHome(t)
+	for _, test := range []struct {
+		name      string
+		level     pressure.Level
+		available uint64
+		memory    uint64
+		margin    uint64
+		sampleErr error
+		want      bool
+	}{
+		{"initial normal", pressure.Normal, 800, 500, 100, nil, true},
+		{"equal is insufficient", pressure.Normal, 600, 500, 100, nil, false},
+		{"one byte spare", pressure.Normal, 601, 500, 100, nil, true},
+		{"undeclared memory", pressure.Normal, 100, 0, 100, nil, false},
+		{"critical", pressure.Critical, 800, 0, 100, nil, false},
+		{"unavailable probe", pressure.Normal, 800, 0, 100, errors.New("probe failed"), false},
+		{"invalid sample", pressure.Normal, 1001, 0, 100, nil, false},
+		{"overflow", pressure.Normal, 800, math.MaxUint64, 100, nil, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var state waitState
+			sample := pressure.Snapshot{Level: test.level, TotalBytes: 1000, AvailableBytes: test.available}
+			if got := state.ready(sample, test.sampleErr, test.memory, test.margin, time.Second, time.Now()); got != test.want {
+				t.Fatalf("admission = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestCancelRemovesTicket(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newGate(t, fakeProvider{level: pressure.Warn}, Options{})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	var warning bytes.Buffer
+	lease, err := gate.Acquire(ctx, ticket, 0, &warning)
+	if lease != nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("canceled admission = %v, %v", lease, err)
+	}
+	if _, err := ticket.TryAcquire(); !errors.Is(err, queue.ErrClosed) {
+		t.Fatalf("canceled ticket remains: %v", err)
+	}
+}
+
+func TestProbeFailureTimesOut(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newGate(t, fakeProvider{err: errors.New("probe unavailable")}, Options{
+		MaxWait: 20 * time.Millisecond, PollInterval: time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	var warning bytes.Buffer
+	lease, err := gate.Acquire(ctx, ticket, 0, &warning)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Release()
+	if !strings.Contains(warning.String(), "WARNING") || !strings.Contains(warning.String(), "probe unavailable") {
+		t.Fatalf("missing timeout/probe warning: %q", warning.String())
+	}
+}
+
+func TestInvalidOptions(t *testing.T) {
+	isolateHome(t)
+	for _, options := range []Options{
+		{MaxWait: -time.Second}, {PollInterval: -time.Second}, {RecoveryWindow: -time.Second},
+	} {
+		if gate, err := New(fakeProvider{}, options); gate != nil || err == nil {
+			t.Fatalf("accepted invalid options: %v, %v", gate, err)
+		}
+	}
+	if gate, err := New(nil, Options{}); gate != nil || err == nil {
+		t.Fatalf("accepted missing provider: %v, %v", gate, err)
+	}
+}
+
+func TestTimeoutKeepsSlots(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	first, err := q.Enqueue(ctx, 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := first.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Release()
+	ticket, err := q.Enqueue(ctx, 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newGate(t, fakeProvider{level: pressure.Warn}, Options{MaxWait: 10 * time.Millisecond, PollInterval: time.Millisecond})
+	type result struct {
+		lease *lane.Lease
+		err   error
+	}
+	results := make(chan result, 1)
+	var warnings bytes.Buffer
+	go func() {
+		lease, err := gate.Acquire(ctx, ticket, 0, &warnings)
+		results <- result{lease, err}
+	}()
+	select {
+	case got := <-results:
+		t.Fatalf("timeout bypassed occupied slot: %+v", got)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := held.Release(); err != nil {
+		t.Fatal(err)
+	}
+	got := <-results
+	if got.err != nil || got.lease == nil {
+		t.Fatalf("released slot not admitted: %+v", got)
+	}
+	defer got.lease.Release()
+	if strings.Count(warnings.String(), "WARNING") != 1 {
+		t.Fatalf("timeout warning count: %q", warnings.String())
+	}
+}
+
+func TestWarningFailureReleases(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newGate(t, fakeProvider{level: pressure.Warn}, Options{MaxWait: time.Millisecond})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if lease, err := gate.Acquire(ctx, ticket, 0, failedWriter{}); lease != nil || err == nil {
+		t.Fatalf("failed warning admitted silently: %v, %v", lease, err)
+	}
+	next, err := q.Enqueue(ctx, 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease, err := next.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("failed warning leaked a slot: %v", err)
+	}
+	defer lease.Release()
+}
+
+type failedWriter struct{}
+
+func (failedWriter) Write([]byte) (int, error) {
+	return 0, errors.New("warning stream closed")
+}
+
+type fakeProvider struct {
+	level pressure.Level
+	err   error
+}
+
+func (fake fakeProvider) Sample(context.Context) (pressure.Snapshot, error) {
+	return pressure.Snapshot{Level: fake.level, TotalBytes: 8 << 30, AvailableBytes: 6 << 30}, fake.err
+}
+
+func newGate(t *testing.T, provider pressure.Provider, options Options) *Gate {
+	t.Helper()
+	gate, err := New(provider, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return gate
+}
+
+func isolateHome(t *testing.T) {
+	t.Helper()
+	// All inherited XDG paths must remain temporary, including future keys.
+	keys := map[string]struct{}{
+		"HOME": {}, "XDG_CONFIG_HOME": {}, "XDG_CACHE_HOME": {},
+		"XDG_DATA_HOME": {}, "XDG_STATE_HOME": {}, "XDG_RUNTIME_DIR": {},
+		"XDG_CONFIG_DIRS": {}, "XDG_DATA_DIRS": {},
+	}
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, "XDG_") {
+			keys[key] = struct{}{}
+		}
+	}
+	for key := range keys {
+		t.Setenv(key, t.TempDir())
+	}
+}
