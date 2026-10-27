@@ -113,6 +113,8 @@ func queueJob(jobs []jobRecord, name string, ticket queue.Waiting) jobRecord {
 		if job.QueueSequence != 0 && job.QueueSequence != ticket.Sequence {
 			continue
 		}
+		// The live ticket supplies the sequence while job publication catches up.
+		job.QueueSequence = ticket.Sequence
 		return job
 	}
 	// A ticket can precede publication of its job metadata. Keep it visible

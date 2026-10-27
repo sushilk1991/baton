@@ -624,3 +624,75 @@ including a fake that ignores TERM; active children and interactive/default
 profile browsers survive. Separate tests cover recorded dead owners,
 reused PIDs, live owners, changed argv, lost orphan status, closed output,
 parser errors, profile aliases, and config overrides.
+
+## Collecting intermediates
+
+`cmd/baton` dispatches `gc [--yes]` to `internal/gc`. Configuration supplies
+absolute roots, relative slash globs, and `older_than` (default seven days,
+written as `168h`). Default roots are empty, so installation never opts a
+directory into deletion. `Config.GCPolicy` returns copies of validated
+policy. The filesystem driver owns directory traversal, metadata, and
+removal; the collector owns matching, age selection, and reporting.
+
+```text
+configured roots -> open without symlinks -> discover regular files
+                                                   |
+                                    glob + mtime strictly before cutoff
+                                                   |
+                     scan all roots -> print sorted paths and byte sizes
+                                                   |
+                          --yes -> reopen parents -> compare -> unlink leaf
+```
+
+An entire `**` component matches zero or more directories; ordinary `*`,
+`?`, and character classes use slash-glob semantics. Patterns match paths
+relative to each configured root. For example, `**/out/slice-*.mp4` covers
+both `out/slice-1.mp4` and `project/out/slice-1.mp4`; `frames/**` covers
+files throughout a frame dump. Duplicate and overlapping roots produce
+one row per absolute path. Modification time determines age; files at the
+cutoff, future files, and fresh files are retained.
+
+Only regular files are candidates. Directories, symlinks (including
+cycles and dangling links), sockets, devices, and FIFOs remain. Directory
+shells are retained: deleting a matching directory recursively could erase
+fresh, unmatched, or newly created files. Sizes report logical file lengths;
+physical space reclaimed depends on sparse extents and remaining hard links.
+
+The Unix driver opens every root component and every descendant directory
+with `O_DIRECTORY | O_NOFOLLOW`, relative to an already open parent. Roots
+with symlinked ancestors are rejected; on macOS, use `/private/tmp` rather
+than the `/tmp` alias. Before each operation, the configured root must
+still identify the original directory. Linux uses `O_PATH | O_NOFOLLOW`
+for metadata without device I/O or FIFO waits. macOS uses `fstatat64` with
+`AT_SYMLINK_NOFOLLOW`; its cgo-free syscall constants follow
+[XNU's syscall table](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/syscalls.master)
+and [fcntl flags](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/fcntl.h).
+
+Before unlinking, the driver compares device, inode, type, size, mtime,
+and ctime with discovery. A missing or changed file, root, or parent aborts
+with a nonzero exit status. The complete selection must reach stdout before
+deletion starts; short or closed output aborts. A later failure reports how
+many files were already deleted. Removal uses only parent-relative leaf
+unlinks.
+
+The final metadata check and unlink are separate syscalls. A concurrent
+replacement in that interval can remove a replacement directory entry;
+`unlinkat` still never follows a symlink. Directory handles identify opened
+objects: a process able to rename an opened directory elsewhere can move
+that object during an operation. Hostile directory renames and privileged
+mount changes fall outside the driver's isolation guarantees. Windows with
+configured roots fails explicitly until a handle-relative driver is
+available; unconfigured gc and all core commands still build.
+
+Native and Linux CLI tests use temporary HOME/XDG directories and owned
+temporary roots. Dry-run lists three files totaling 16 bytes and changes
+nothing. `--yes` removes those files while preserving fresh and unmatched
+files, symlinks, and an outside sentinel. Further tests cover globstar,
+overlapping roots, strict age boundaries, special files, root/parent/leaf
+replacement, same-size rewrites with restored mtime, traversal rejection,
+closed/short output, config errors, and partial-deletion reporting.
+
+The Linux gate exposed an existing status publication race: a live ticket
+could join job metadata whose `queue_sequence` was still zero. Status now
+copies the authoritative sequence from that ticket. A regression fails
+without this assignment; no scheduling or status assertions were relaxed.

@@ -19,6 +19,16 @@ import (
 	"github.com/sushilk1991/baton/internal/queue"
 )
 
+// Job metadata may precede ticket publication; the queue owns its sequence.
+func TestQueuedPublicationSequence(t *testing.T) {
+	job := jobRecord{Lane: "build", OwnerPID: 42, Phase: "queued", Label: "waiting"}
+	ticket := queue.Waiting{PID: 42, Sequence: 7}
+	got := queueJob([]jobRecord{job}, "build", ticket)
+	if got.Label != "waiting" || got.QueueSequence != ticket.Sequence {
+		t.Fatalf("unpublished sequence: label=%q sequence=%d, want %d", got.Label, got.QueueSequence, ticket.Sequence)
+	}
+}
+
 func TestStatusLiveAndStale(t *testing.T) {
 	isolateHome(t)
 	cfg, err := config.Load()
