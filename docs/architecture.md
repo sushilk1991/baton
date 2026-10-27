@@ -81,3 +81,57 @@ They exercise the lane API through test subprocesses. The literal
 Tests replace HOME and every XDG variable before spawning children and
 terminate only their own subprocesses. Cross-builds compile every package,
 including drivers not yet referenced by the CLI.
+
+## Queue
+
+`internal/queue` orders admission above `internal/lane`. The queue takes a
+state root, lane name, and capacity. It stores tickets under
+`queue/<lane hash>/` and passes `locks/` to the lane package. Callers must
+use the queue for fairness; direct lane acquisitions remain unordered.
+
+```text
+enqueue: queue.lock -> sequence -> owner.lock + ticket.json -> unlock
+                                      |
+wait:                         retain owner.lock only
+                                      |
+admit:   queue.lock -> prune/order -> lane.TryAcquire -> delete ticket
+                                            |
+job:                                  retain slot locks
+```
+
+Each ticket has a persisted sequence, creation time, priority, weight, and
+owner PID. The sequence increments under the queue guard before publication;
+a crash can skip a number but cannot reuse an owner path. Atomic rename
+protects the sequence file from partial writes. FIFO means registration
+order under that guard, including simultaneous arrivals.
+
+Initial order is high, normal, then low. Every five minutes of waiting
+promotes a ticket one level, capped at high. Equal effective priorities use
+sequence order. A low-priority ticket reaches high after ten minutes, where
+new arrivals cannot overtake it. Promotion uses wall-clock elapsed time;
+moving the clock backward delays promotion until the interval elapses.
+Tests inject time to check both sides of the promotion boundary.
+
+Only the head ticket attempts a complete weighted reservation. Smaller jobs
+do not fill slots ahead of a waiting heavier job, so repeated small arrivals
+cannot starve it. Admission order does not guarantee child startup order
+when several slots become available together.
+
+A ticket retains a kernel owner lock until admission or cancellation.
+Scanners try that lock under the queue guard: success proves the owner is
+gone and permits cleanup, including incomplete ticket writes. PID reuse
+does not affect liveness. Every ticket path is unique, and removal happens
+under the same guard used for creation and scanning; no live owner lock is
+unlinked. The shared guard file stays in place. Damaged live metadata fails
+explicitly instead of silently discarding a waiting job.
+
+`Ticket.TryAcquire` supports a later memory gate without surrendering queue
+position. `Ticket.Acquire` polls every 10 ms and closes its ticket on errors
+or context cancellation. `Close` is safe to repeat or call concurrently.
+The APIs remain internal. The CLI and memory gate belong to later tasks.
+
+Real subprocesses verify FIFO within each priority, high before normal
+before low, and dead-ticket cleanup after SIGKILL. Jobs record their own
+admission order while holding a slot. Unit tests cover aging, weighted head
+blocking, cancellation, concurrent registration, sequence recovery, and
+corrupt metadata.
