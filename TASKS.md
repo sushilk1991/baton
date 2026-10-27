@@ -2,7 +2,7 @@
 
 One item per iteration, in order. Check it off only when its tests pass.
 
-- [ ] Scaffold: go.mod (`github.com/sushilk1991/baton`, go 1.22), `cmd/baton`, `internal/` layout, Makefile with `check`, `.golangci.yml`, CI workflow, LICENSE (Apache-2.0), .gitignore
+- [x] Scaffold: go.mod (`github.com/sushilk1991/baton`, go 1.22), `cmd/baton`, `internal/` layout, Makefile with `check`, `.golangci.yml`, CI workflow, LICENSE (Apache-2.0), .gitignore
 - [ ] Lanes and slots: lock-file semaphores (flock on Unix, LockFileEx on Windows), weights, crash safety; tests a and b
 - [ ] Queue: tickets, FIFO within priority, aging, dead-ticket cleanup; test c
 - [ ] Pressure providers: darwin, linux (PSI, meminfo, cgroup v2), windows; gate with hysteresis and max_wait; fake provider; test e
