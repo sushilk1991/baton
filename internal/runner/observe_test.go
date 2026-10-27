@@ -29,6 +29,31 @@ func TestQueuedPublicationSequence(t *testing.T) {
 	}
 }
 
+// A ticket published after the initial job snapshot still needs its identity.
+func TestQueuedMetadataRefresh(t *testing.T) {
+	isolateHome(t)
+	root := t.TempDir()
+	store, err := newStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := jobRecord{ID: "new-waiter", Lane: "build", OwnerPID: os.Getpid(), Phase: "queued", Label: "compile", Agent: "codex"}
+	owner, err := lockfile.Try(filepath.Join(root, "jobs", job.ID+".lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	if err := store.publish(job); err != nil {
+		t.Fatal(err)
+	}
+	// The observer's earlier snapshot is empty; queue discovery happened later.
+	ticket := queue.Waiting{PID: os.Getpid(), Sequence: 7}
+	got, err := queuedJob(context.Background(), root, nil, "build", ticket)
+	if err != nil || got.Label != "compile" || got.Agent != "codex" || got.QueueSequence != ticket.Sequence {
+		t.Fatalf("new ticket lost identity: label=%q agent=%q sequence=%d error=%v", got.Label, got.Agent, got.QueueSequence, err)
+	}
+}
+
 func TestStatusLiveAndStale(t *testing.T) {
 	isolateHome(t)
 	cfg, err := config.Load()

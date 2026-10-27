@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/sushilk1991/baton/internal/browser"
 	"github.com/sushilk1991/baton/internal/cache"
 	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/gc"
@@ -32,6 +33,7 @@ Commands:
   reap    List or terminate aged orphaned heavy processes
   gc      List or delete aged regenerable intermediates
   cache   List cached outputs or prune to the size cap
+  browser Manage the shared headless browser
 `
 )
 
@@ -50,6 +52,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// Keep command execution below argument dispatch.
+	if args[0] == "browser" {
+		return browser.Run(args[1:], stdout, stderr)
+	}
 	if args[0] == "run" {
 		return runner.Run(args[1:], os.Stdin, stdout, stderr)
 	}

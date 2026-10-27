@@ -89,7 +89,10 @@ func readStatus(ctx context.Context, root string, cfg *config.Config, provider p
 		}
 		view.Lanes = append(view.Lanes, laneView{name, lane.Used, lane.Total, capacity})
 		for index, ticket := range lane.Waiting {
-			job := queueJob(jobs, name, ticket)
+			job, err := queuedJob(ctx, root, jobs, name, ticket)
+			if err != nil {
+				return statusView{}, err
+			}
 			job.WaitNanos = elapsed(now, job.Queued)
 			view.Queue = append(view.Queue, jobView{jobRecord: job, Position: index + 1})
 		}
@@ -102,6 +105,21 @@ func readStatus(ctx context.Context, root string, cfg *config.Config, provider p
 		return left.ID < right.ID
 	})
 	return view, nil
+}
+
+func queuedJob(ctx context.Context, root string, jobs []jobRecord, name string, ticket queue.Waiting) (jobRecord, error) {
+	job := queueJob(jobs, name, ticket)
+	if job.ID != "" {
+		return job, nil
+	}
+
+	// A ticket may appear after the initial job scan. Its writer publishes
+	// identity before enqueueing, so refresh once before using a placeholder.
+	fresh, err := activeJobs(ctx, root)
+	if err != nil {
+		return jobRecord{}, err
+	}
+	return queueJob(fresh, name, ticket), nil
 }
 
 func queueJob(jobs []jobRecord, name string, ticket queue.Waiting) jobRecord {

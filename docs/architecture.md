@@ -772,3 +772,75 @@ is met; stores enforce the same cap. The default remains 10 GiB. Oversized
 individual outputs run normally but are not stored. Metadata, persistent
 lock files, filesystem overhead, and retained hardlinks outside the cache
 do not count toward the payload cap. Unrecognized cache-root files remain.
+
+## Shared headless browser
+
+`internal/browser` owns lifecycle and CDP proxying. Only `browser start`
+launches a detached copy of the same baton binary as a supervisor. Core
+scheduling still needs no daemon. A control lock serializes start/stop;
+a lifetime kernel lock enforces one supervisor per state directory.
+Observation never creates state or trusts a persisted PID for liveness.
+
+```text
+start/stop -> control.lock -> supervisor -> browser.lock (held for lifetime)
+                                  |
+                                  +-> owned Chrome, unique private profile
+                                  |
+clients -> loopback CDP proxy -----+-> Chrome loopback CDP
+             |
+             +-> successful WebSocket upgrades increment clients
+             +-> disconnect decrements clients, starts idle interval
+             +-> zero clients for idle_timeout -> stop owned browser
+```
+
+Chrome writes an ephemeral debugging port and browser path to its private
+`DevToolsActivePort` file. The supervisor probes HTTP discovery before
+publishing an atomic, owner-readable session file. A loopback reverse proxy
+forwards WebSocket frames unchanged and rewrites discovery WebSocket URLs
+back to itself. Counts measure open browser/page WebSockets, not tabs,
+processes, or unique tools. Failed upgrades do not count. Active connections
+prevent idle shutdown; observation and HTTP discovery do not reset it.
+
+Control endpoints require a random 256-bit session token. The token is
+stored in private state and sent in an HTTP header, never command arguments.
+HTTP clients ignore environment proxies and redirects. The proxy rejects
+nonlocal Host headers and all Origin headers. Local CDP remains available
+to other processes on the machine; this is not a same-user sandbox.
+
+Discovery checks PATH, OS application locations, and known Playwright cache
+layouts, including its cache override. A configured absolute executable
+wins. Extra flags are separate argv entries with no shell expansion.
+Headless mode, profile, and debugging switches remain managed. GPU is
+requested with `--enable-gpu`; users can add `--disable-gpu`. GPU availability
+is not inferred from these flags. The browser keeps its normal sandbox.
+
+Normal stop, idle expiry, or supervisor INT/TERM/HUP terminates the owned
+Unix process group, waits three seconds, then forces termination if needed.
+The supervisor waits for the browser before dropping its lifetime lock.
+Startup errors return nonzero and name the private diagnostic log. Only
+normal shutdown removes the newly created private profile.
+
+On macOS/Linux, ownership metadata records child PID, birth token, and
+private-profile path before readiness. A replacement supervisor holding the
+lifetime lock first retires a surviving recorded child. Recovery checks
+birth identity, current user, and exact profile argv; process.Send
+revalidates identity immediately before signalling. It waits for observed
+death before launching the replacement. A changed process or corrupt record
+fails closed. A crash before ownership publication can leave an unrecorded
+orphan; reap remains the recovery path. Crash profiles remain on disk.
+Windows starts/stops owned children on a best-effort basis and deliberately
+lacks persisted-PID recovery until a birth-identity driver exists.
+
+Primary references checked during implementation: Chrome's
+[nondefault-profile requirement](https://developer.chrome.com/blog/remote-debugging-port),
+Playwright's [executable registry](https://github.com/microsoft/playwright/blob/main/packages/playwright-core/src/server/registry/index.ts),
+and the connection APIs linked in [browser recipes](browser.md).
+
+The native browser gate exposed another status snapshot race: a ticket can
+appear after the initial job scan, even though its writer publishes identity
+before enqueueing. Status now refreshes live job metadata once when a ticket
+has no matching record in that scan. A deterministic regression reproduces
+the empty label and agent; the original real-process assertion is unchanged.
+If a job finishes during observation, its ticket can still appear with only
+scheduling fields. Status remains an observation, not an atomic transaction
+across every lane and job.
