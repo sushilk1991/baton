@@ -7,7 +7,7 @@ Shipped locally: sixteen of seventeen TASKS.md items, plus a browser fix
 found during Final gate. SPEC.md, README.md, and TASKS.md are unchanged.
 No push, tag, release, or remote change was made.
 
-Verified: post-fix native `make check` and
+Previously verified: post-fix native `make check` and
 `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
 Both passed vet, race tests, and all five cgo-free cross-builds. Lint was
 unavailable and skipped. Native Go was 1.27.0 darwin/arm64, macOS 27.0.1.
@@ -31,6 +31,13 @@ remain part of the Final gate result.
 Pending: public installation prerequisites and successful reruns of those
 three commands. Final gate stays unchecked; STATUS: DONE was not written.
 See [the verification report](docs/verification.md) for commands and evidence.
+
+Iteration 20 checked the publication prerequisite without rerunning installs.
+`gh-axi release list` returned `count: 0` and `releases: []`.
+`git ls-remote --heads https://github.com/sushilk1991/baton.git` exited 0
+with no branch refs. These current checks support the existing blocker;
+this iteration did not rerun either full gate or change production code.
+Evidence: `.yoyo/iteration20-prerequisites.log`.
 
 The prior stress task remains complete: native default runs printed PASS,
 including 211.773 seconds queued / 180.761 seconds sequential (1.172), overlap
