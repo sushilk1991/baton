@@ -34,3 +34,50 @@ runner](https://github.blog/changelog/2025-09-19-github-actions-macos-13-runner-
 in December 2025, so that job cannot run on a GitHub-hosted runner. A macOS
 13 runner or a spec change is required before the full CI matrix can pass.
 The immutable spec has not been changed.
+
+## Lanes and slots
+
+`internal/lane` owns weighted admission. `internal/lockfile` hides Unix
+`flock` and Windows `LockFileEx`; neither needs cgo or a daemon. These are
+internal Go APIs, not a supported public library.
+
+```text
+lane.TryAcquire(weight)
+    |
+    v
+allocation.lock -> capacity check -> slot-0.lock ... slot-N.lock
+    |                                  |
+    +-- release before returning       +-- lease owns weight handles
+                                           |
+                                      release or process death
+```
+
+Each lane name maps to a SHA-256 directory beneath the supplied lock root.
+Names can contain path separators without escaping that root. Lock files
+stay in place: unlinking one while another process holds it could create
+two independent locks at the same path.
+
+A short allocation lock prevents competing weighted requests from retaining
+partial reservations. Each attempt takes all requested slots or releases
+everything it took. Waiting holds no handles. `TryAcquire` lets the later
+queue layer decide admission order; `Acquire` currently retries every 10 ms
+with context cancellation. This primitive does not promise FIFO or aging.
+
+Capacity is stored atomically under the allocation lock. Changing capacity
+waits until every slot in the previous capacity is idle; callers using
+different capacities cannot run together. Corrupt capacity metadata fails
+explicitly. No lock file is removed during resizing.
+
+The drivers use nonblocking exclusive locks and explicit unlock on normal
+release. Kernel cleanup releases handles after process death. See the
+primary references for [flock](https://man7.org/linux/man-pages/man2/flock.2.html)
+and [LockFileEx](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex).
+Use local storage for lock state; network filesystem lock semantics vary.
+
+Real-process tests cover 20 jobs measuring their own overlap with two
+slots, weighted contention, and kill-to-admission latency below one second.
+They exercise the lane API through test subprocesses. The literal
+`baton run --lane x -- sleep` integration belongs to the later CLI item.
+Tests replace HOME and every XDG variable before spawning children and
+terminate only their own subprocesses. Cross-builds compile every package,
+including drivers not yet referenced by the CLI.

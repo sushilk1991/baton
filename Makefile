@@ -33,6 +33,8 @@ cross-build:
 		suffix=; if [ "$$target_os" = windows ]; then suffix=.exe; fi; \
 		echo "cross-build $$target"; \
 		CGO_ENABLED=0 GOOS="$$target_os" GOARCH="$$target_arch" \
+			"$(GO)" build ./...; \
+		CGO_ENABLED=0 GOOS="$$target_os" GOARCH="$$target_arch" \
 			"$(GO)" build -trimpath \
 			-o "$(CROSS_DIR)/baton-$$target_os-$$target_arch$$suffix" ./cmd/baton; \
 	done
