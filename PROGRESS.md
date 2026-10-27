@@ -1,55 +1,58 @@
 # Progress
 
-Shipped locally: twelve TASKS.md items, through Browser. Implementation:
-7f01d8a. SPEC.md is unchanged. No push, tag, release, or remote change.
-The overall goal remains incomplete.
+Shipped locally: thirteen of seventeen TASKS.md items, through init and MCP.
+Implementation: d3ce3ad. SPEC.md is unchanged. No push, tag, release, or
+remote change. The overall goal remains incomplete.
 
 Verified: native `make check` and
-`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
-Both passed vet, race tests, and all five cgo-free cross-builds.
-golangci-lint was unavailable and skipped. Windows compiled; its runtime
-remains unverified.
+`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0
+with the final code. Both passed vet, race tests, and all five cgo-free
+cross-builds. golangci-lint was unavailable and skipped. Windows compiled;
+its runtime remains unverified.
 
-`browser start|stop|status|endpoint` manages one warm headless browser per
-state directory. Discovery checks PATH, OS installations, and Playwright
-cache layouts; configuration controls executable, flags, and idle timeout.
-A detached supervisor holds a lifetime kernel lock, creates a private
-profile, and proxies loopback CDP. Successful WebSocket connections count
-as clients; the final disconnect starts the idle interval. HTTP discovery
-and status polling do not extend it. Stop closes connections and terminates
-the owned browser. Unix crash recovery checks process birth, user, and
-private-profile argv before retiring a recorded orphan.
+`init` previews by default and applies with --yes; --dry-run always prevents
+writes. It installs the shared Agent Skills document, links detected agent
+skill directories, and appends marked instructions to supported global
+files. Aider uses its read-only config field. Optional Claude hooks either
+rewrite heavy Bash calls or block with the exact queued command.
 
-Real CLI process tests on macOS/Linux cover six simultaneous starts sharing
-one browser, clients 2 -> 1 -> 0, active clients surviving the idle timeout,
-idle expiry, restart, explicit stop, startup failure, and supervisor SIGKILL
-recovery. An opt-in native test exchanged Browser.getVersion through the
-proxy with Chrome/156.0.8078.48, then stopped it. Unit tests cover executable
-layouts, managed flags, failed upgrades, discovery rewriting, origin/control
-rejection, idle timing, and recovery identity guards. Every test uses
-isolated HOME/XDG paths and stops only its owned processes.
+A private write-ahead manifest records original bytes and modes, installed
+bytes, links, and created directories. Reinstall resumes interrupted
+publication. Uninstall restores exact originals and removes empty owned
+parents. Modified files, conflicts, and redirected parents fail before
+restoration; later user files remain. Instruction symlinks within home and
+config roots retain their entries. Existing shared skill aliases stay intact.
 
-Red evidence: cache discovery selected chrome-headless-shell.pak instead of
-the executable. Exact executable basenames fix that Windows hazard. Native
-make check also exposed a status snapshot race: a new queue ticket could
-lose its label and agent. A deterministic regression failed with empty
-identity; refreshing metadata once on a missing match fixes it. The original
-real-process assertion passed ten repeated race runs and both full gates.
-No checks were weakened.
+`mcp` serves five read-only tools over stdio: status, history,
+reap_candidates, gc_candidates, and explain_lane. It validates lifecycle,
+IDs, message size, and argument types; no execution, deletion, or signalling
+option is accepted. Candidate queries leave matching files untouched.
 
-Architecture decisions and limits are in docs/architecture.md. Browser
-recipes use primary-source API checks; the JavaScript/MCP tool flows remain
-unexecuted. The no-ai-slop prose pass was applied.
+Fake-HOME tests cover preview, install, idempotency, byte-identical uninstall,
+permission restoration, conflict preservation, interrupted install/uninstall,
+symlink handling, Aider forms, private manifests, and both hook modes. A
+compiled-binary test executes the installed hook and its returned Bash
+command through an ffmpeg shim in a single-slot lane, preserves quoted argv,
+and uninstalls. A real MCP subprocess exercises all five tools and rejects
+unsafe calls. Every HOME and XDG path is temporary.
 
-Pending: complete only init and MCP next. Read SPEC.md section 3.8, TASKS.md,
-docs/architecture.md, and existing shim manifest/atomic-write patterns.
-Implement fake-HOME install, idempotency, byte-identical uninstall, and the
-read-only MCP tools. Do not start the general docs, distribution, stress,
-or final-gate items in that iteration.
+Red evidence: the shim flow waited on its parent's slot and exited 143 on
+cancellation. Passing the existing admission marker to the child shell fixed
+it. Linux also rejected Bash conditionals under sh (127, [[: not found);
+the wrapper now uses Bash. Tests also caught null request IDs/arguments,
+malformed manifests, and indentless Aider lists. Both full gates pass without
+weakening assertions. The no-ai-slop pass was applied to the new prose.
 
-Limits: a supervisor crash before ownership publication can leave an
-unrecorded orphan for reap; crash profiles remain. Direct connections to
-Chrome's private port bypass counting. CDP is locally accessible and is
-not a same-user sandbox. Windows runtime and crash recovery, hosted CI,
-stress results, and every README command remain unverified. Prior cache,
-gc, reap, scheduling, and platform limits remain in docs/architecture.md.
+Pending: complete only the Docs item next. Read SPEC.md, TASKS.md,
+docs/architecture.md, and existing docs before writing README, configuration
+reference, recipes, demo.tape, comparison, and community files. Preserve the
+implemented behavior and its documented limits. Distribution, stress results,
+and the final gate remain separate iterations.
+
+Limits: live agent loading and a real external MCP client's registration were
+not exercised. Hook classification is advisory; scripts and shell expansions
+can hide work. Keep its installed binary path stable; uninstall/reinstall
+before changing hook mode or binary location. Complex Aider YAML requires
+conversion to a supported filename-list form. Filesystem validation is not a
+sandbox against hostile same-user races. Prior browser, cache, gc, reap,
+scheduling, and platform limits remain in docs/architecture.md.
