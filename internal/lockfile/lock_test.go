@@ -91,3 +91,22 @@ func isolateHome(t *testing.T) {
 		t.Setenv(key, t.TempDir())
 	}
 }
+
+func TestExistingNeverCreates(t *testing.T) {
+	isolateHome(t)
+	path := filepath.Join(t.TempDir(), "missing.lock")
+	if _, err := TryExisting(path); !os.IsNotExist(err) {
+		t.Fatalf("missing existing lock: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("probe created lock: %v", err)
+	}
+	held, err := Try(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	if _, err := TryExisting(path); !errors.Is(err, ErrBusy) {
+		t.Fatalf("held lock: %v", err)
+	}
+}

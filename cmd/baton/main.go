@@ -22,6 +22,8 @@ Usage: baton <command> [arguments]
 Commands:
   run     Queue and execute a command
   config  Initialize, show, locate, or validate configuration
+  status  Show running jobs, queues, slots, and memory
+  history Show completed jobs
 `
 )
 
@@ -45,6 +47,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "config" {
 		return config.Run(args[1:], stdout, stderr)
+	}
+	if args[0] == "status" {
+		return runner.Status(args[1:], stdout, stderr)
+	}
+	if args[0] == "history" {
+		return runner.History(args[1:], stdout, stderr)
 	}
 
 	// Fail explicitly until each command exists, so agents cannot infer success.

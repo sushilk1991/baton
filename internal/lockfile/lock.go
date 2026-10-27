@@ -33,6 +33,18 @@ func Try(path string) (*Lock, error) {
 	return &Lock{file: file}, nil
 }
 
+// TryExisting locks an existing file without creating state during observation.
+func TryExisting(path string) (*Lock, error) {
+	file, err := os.OpenFile(path, os.O_RDWR, fileMode)
+	if err != nil {
+		return nil, err
+	}
+	if err := tryLock(file); err != nil {
+		return nil, errors.Join(fmt.Errorf("lock %s: %w", path, err), file.Close())
+	}
+	return &Lock{file: file}, nil
+}
+
 // Close releases the lock and descriptor; repeated or concurrent calls are safe.
 func (lock *Lock) Close() error {
 	lock.once.Do(func() {

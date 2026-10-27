@@ -23,28 +23,29 @@ const (
 )
 
 type jobRecord struct {
-	ID           string    `json:"id"`
-	Signature    string    `json:"signature"`
-	Lane         string    `json:"lane"`
-	Label        string    `json:"label"`
-	Agent        string    `json:"agent"`
-	Cwd          string    `json:"cwd"`
-	Repo         string    `json:"repo"`
-	User         string    `json:"user"`
-	OwnerPID     int       `json:"owner_pid"`
-	PID          int       `json:"pid"`
-	Weight       int       `json:"weight"`
-	Priority     string    `json:"priority"`
-	Phase        string    `json:"phase"`
-	Queued       time.Time `json:"queued"`
-	Start        time.Time `json:"start"`
-	End          time.Time `json:"end"`
-	WaitNanos    int64     `json:"wait_ns"`
-	ExitCode     int       `json:"exit_code"`
-	MemoryBytes  uint64    `json:"memory_bytes"`
-	RSSBytes     uint64    `json:"rss_bytes"`
-	PeakRSSBytes uint64    `json:"peak_rss_bytes"`
-	CacheHit     bool      `json:"cache_hit"`
+	ID            string    `json:"id"`
+	Signature     string    `json:"signature"`
+	Lane          string    `json:"lane"`
+	Label         string    `json:"label"`
+	Agent         string    `json:"agent"`
+	Cwd           string    `json:"cwd"`
+	Repo          string    `json:"repo"`
+	User          string    `json:"user"`
+	OwnerPID      int       `json:"owner_pid"`
+	PID           int       `json:"pid"`
+	Weight        int       `json:"weight"`
+	QueueSequence uint64    `json:"queue_sequence,omitempty"`
+	Priority      string    `json:"priority"`
+	Phase         string    `json:"phase"`
+	Queued        time.Time `json:"queued"`
+	Start         time.Time `json:"start"`
+	End           time.Time `json:"end"`
+	WaitNanos     int64     `json:"wait_ns"`
+	ExitCode      int       `json:"exit_code"`
+	MemoryBytes   uint64    `json:"memory_bytes"`
+	RSSBytes      uint64    `json:"rss_bytes"`
+	PeakRSSBytes  uint64    `json:"peak_rss_bytes"`
+	CacheHit      bool      `json:"cache_hit"`
 }
 
 type store struct{ root string }

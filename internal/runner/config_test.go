@@ -40,7 +40,12 @@ matchers = ['^custom-render( |$)']
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	root := t.TempDir()
-	lease, err := admit(ctx, opts, root, &bytes.Buffer{})
+	store, err := newStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	holder := jobRecord{ID: "holder"}
+	lease, err := admit(ctx, opts, store, &holder, &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +57,8 @@ matchers = ['^custom-render( |$)']
 	waitCtx, stop := context.WithTimeout(ctx, 30*time.Millisecond)
 	defer stop()
 	var warnings bytes.Buffer
-	next, waitErr := admit(waitCtx, opts, root, &warnings)
+	waiter := jobRecord{ID: "waiter"}
+	next, waitErr := admit(waitCtx, opts, store, &waiter, &warnings)
 	if next != nil || waitErr == nil || strings.Contains(warnings.String(), "WARNING") {
 		t.Fatalf("disabled gate wait: lease=%v error=%v stderr=%q", next, waitErr, &warnings)
 	}

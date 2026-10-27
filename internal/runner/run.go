@@ -120,7 +120,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 		return control.waitCode(), err
 	}
 
-	lease, err := admit(ctx, opts, root, ioSet.err)
+	lease, err := admit(ctx, opts, store, &job, ioSet.err)
 	if err != nil {
 		return control.waitCode(), err
 	}
@@ -143,7 +143,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	return code, errors.Join(runErr, persistErr)
 }
 
-func admit(ctx context.Context, opts options, root string, out io.Writer) (*lane.Lease, error) {
+func admit(ctx context.Context, opts options, store *store, job *jobRecord, out io.Writer) (*lane.Lease, error) {
 	if opts.lane == "" {
 		return nil, nil
 	}
@@ -152,7 +152,7 @@ func admit(ctx context.Context, opts options, root string, out io.Writer) (*lane
 		provider = pressure.System()
 	}
 	notices := &noticeProvider{out: out, lane: opts.lane, quiet: opts.quiet}
-	q, err := queue.New(root, opts.lane, opts.slots)
+	q, err := queue.New(store.root, opts.lane, opts.slots)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +161,12 @@ func admit(ctx context.Context, opts options, root string, out io.Writer) (*lane
 		return nil, err
 	}
 	defer ticket.Close()
+	// Publish the queue's sequence so readers use actual priority/FIFO order,
+	// even when multiple jobs share a parent PID or cross an aging boundary.
+	job.QueueSequence = ticket.Sequence()
+	if err := store.publish(*job); err != nil {
+		return nil, err
+	}
 	policy := opts.gate
 	policy.MaxWait, policy.OnWait = opts.maxWait, notices.wait
 	gate, err := admission.New(provider, policy)

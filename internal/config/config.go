@@ -211,6 +211,16 @@ func (config *Config) Lane(name string) Policy {
 	return lane
 }
 
+// LaneNames returns a detached, sorted list for status, including idle lanes.
+func (config *Config) LaneNames() []string {
+	names := make([]string, 0, len(config.lanes))
+	for name := range config.lanes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // AutoLane matches argv in configured order while leaving shell text opaque.
 func (config *Config) AutoLane(args []string) string {
 	if len(args) == 0 {

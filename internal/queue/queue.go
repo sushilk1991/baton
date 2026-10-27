@@ -59,6 +59,11 @@ type Ticket struct {
 	closed bool
 }
 
+// Sequence identifies this ticket within its lane for live job correlation.
+func (ticket *Ticket) Sequence() uint64 {
+	return ticket.entry.Sequence
+}
+
 // New prepares the queue and weighted lane beneath root.
 func New(root, name string, slots int) (*Queue, error) {
 	if root == "" || name == "" || slots < 1 {

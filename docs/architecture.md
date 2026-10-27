@@ -391,3 +391,72 @@ disabled matching, strict keys/types, regexes, paths, durations, byte units,
 effective-TOML round trips, and concurrent initialization. Runner tests
 verify configured weights and waits, CLI overrides, bypass recovery, and
 disabled gates retaining capacity without probes or timeout warnings.
+
+## Status and history
+
+`cmd/baton` routes `status` and `history` through the runner's read and
+render functions. Configuration exposes a detached list of lane names;
+queue and lane packages expose read projections above the lock driver.
+These remain internal APIs. The lock driver can probe existing files
+without creating them.
+
+```text
+status -> config + live job records + pressure
+                 |
+                 v
+           queue guard -> ordered tickets -> lane guard -> slot locks
+
+history -> history guard -> copy previous + current -> release -> parse/filter
+```
+
+Status lists configured lanes, including idle lanes, and ad-hoc lanes named
+by live jobs. Occupancy comes from kernel slot locks, so a crashed runner's
+stale job record cannot inflate it. The persisted capacity is `total`;
+`configured_total` shows a pending configuration change. Before the first
+reservation, total is the configured capacity. Idle ad-hoc lanes disappear
+when no live job names them.
+
+Job owner locks distinguish live records from crash residue without PID
+liveness guesses. Readers leave stale records and owner files in place.
+They never prune tickets, resize lanes, or create state directories or
+lock files. Queue scans hold the scheduler's queue guard and use the same
+priority, aging, and sequence comparison. A live ticket with missing or
+invalid metadata fails explicitly. New runners publish the ticket sequence
+in their job record; older records can be correlated by owner PID. A ticket
+published before job metadata remains visible with its scheduling fields.
+
+Snapshots span multiple observations rather than a global transaction.
+Jobs can finish or start between reading job records, queue state, and
+memory counters. Slot counts are sampled under the lane allocation guard;
+slot release can still occur during observation. Current RSS is the
+runner's latest sample. Runtime and current wait durations clamp at zero
+if the wall clock moves backward. JSON uses byte counts, nanosecond
+durations, UTC timestamps, and empty arrays for empty lists.
+
+`status --watch` emits immediately and then once per second. Text appends
+frames with timestamps; `--line` appends compact lines; `--json` emits one
+complete JSON object per line. No terminal clearing escapes are emitted.
+`--json` and `--line` are mutually exclusive. SIGINT, SIGTERM, and SIGHUP
+stop watching with exit 0. Configuration is loaded once per invocation;
+restart a watch after editing it. One observation has a five-second deadline;
+probe, metadata, lock, and output errors fail the command. A failed pressure
+probe is never presented as normal pressure. Text output replaces control
+characters in labels and paths to prevent terminal or row injection.
+
+History defaults to every retained record. `--since` accepts a nonnegative
+Go duration and filters by completion time, inclusive of the cutoff;
+`--lane` matches the exact lane name. JSON output is JSONL. Human output
+includes start, end, wait, exit, peak RSS, lane, label, agent, repo, and cache
+hit. Both rotated segments are copied oldest segment first under the same
+guard as append and rotation. Parsing and filtering happen after releasing
+the guard, so JSON decoding cannot stall writers. Missing history is an
+empty result. Invalid,
+blank, or incomplete lines fail with file and line, including records a
+filter would exclude. No partial result is printed on a read failure.
+
+Tests cover empty state without filesystem changes, real running and queued
+CLI processes, weighted occupancy, priority positions, identity, RSS,
+completion history, filtering, valid rotation under concurrent writes,
+stale owners, damaged live metadata, cancellation, watch frames and signals,
+output errors, and terminal control characters. Test jobs use temporary
+HOME/XDG paths and release only their own processes.
