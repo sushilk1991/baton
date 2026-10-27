@@ -10,7 +10,7 @@ One item per iteration, in order. Check it off only when its tests pass.
 - [x] Config: TOML, hardware-derived defaults, `config init|show|path|validate`, XDG paths on every OS
 - [x] `status` (`--json`, `--watch`, `--line`) and `history`
 - [x] `shim install|uninstall|list` with fast paths and recursion guard; test f
-- [ ] `reap`; test g
+- [x] `reap`; test g
 - [ ] `gc`; test h
 - [ ] Cache (`--cache-key`, `--output`, `cache ls|prune`); test i
 - [ ] `browser start|stop|status|endpoint` with idle shutdown and client counting
