@@ -1,0 +1,51 @@
+// Command baton coordinates heavy jobs on one machine.
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+)
+
+const (
+	exitOK      = 0
+	exitFailure = 1
+	exitUsage   = 2
+
+	helpText = `baton queues heavy jobs on this machine.
+
+Usage: baton <command> [arguments]
+
+Commands are not implemented yet.
+`
+)
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func run(args []string, stdout, stderr io.Writer) int {
+	// A bare invocation or help flag shows usage without running any work.
+	if len(args) == 0 {
+		return printHelp(stdout)
+	}
+
+	if len(args) == 1 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
+		return printHelp(stdout)
+	}
+
+	// Fail explicitly until each command exists, so agents cannot infer success.
+	if _, err := fmt.Fprintf(stderr, "baton: unknown command %q\n\n%s", args[0], helpText); err != nil {
+		return exitFailure
+	}
+
+	return exitUsage
+}
+
+func printHelp(output io.Writer) int {
+	if _, err := io.WriteString(output, helpText); err != nil {
+		return exitFailure
+	}
+
+	return exitOK
+}

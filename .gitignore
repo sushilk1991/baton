@@ -1,0 +1,11 @@
+# Local binaries and cross-build outputs.
+/bin/
+/.build/
+/dist/
+*.test
+*.test.exe
+/coverage.out
+
+# Loop coordination belongs to the caller, not the source tree.
+/.yoyo/
+.DS_Store
