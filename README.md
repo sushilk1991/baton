@@ -86,7 +86,8 @@ After building, run these from a POSIX shell:
 
 The reproducible terminal demo is [docs/demo.tape](docs/demo.tape).
 [Recording instructions](docs/demo.md) keep its state separate from yours.
-No recording or benchmark result is claimed yet.
+No recording is claimed yet. A bounded [machine benchmark](docs/benchmarks.md)
+records measured results and their limits.
 
 ## How it works
 
@@ -156,8 +157,8 @@ The alternatives below are often better for narrower or stronger needs.
 
 No. Admission samples memory; it does not reserve or cap it. Different lanes
 can admit jobs concurrently, and unrelated tools can allocate at any time.
-Tune slots and budgets for your workloads. Machine stress results are
-[pending](docs/benchmarks.md).
+Tune slots and budgets for your workloads. The bounded
+[machine stress run](docs/benchmarks.md) passed; its unqueued baseline did too.
 
 ### Does every terminal share a queue?
 

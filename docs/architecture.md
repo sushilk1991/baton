@@ -1001,3 +1001,77 @@ installer into sh with fake platform/network boundaries and real archives,
 hashing, installation, and executable invocation. Local snapshot packaging
 and fixtures do not prove published release or tap availability. See
 [distribution](distribution.md) for the checked primary references.
+
+## Stress benchmark
+
+`scripts/stress.sh` builds baton and a private `internal/stress` helper with
+cgo disabled. Build caches, HOME, USERPROFILE, and all XDG paths are temporary;
+the launcher clears inherited agent settings and bypasses shims during builds.
+`-modcacherw` keeps downloaded modules removable. The helper uses a new native
+temporary HOME and scheduler state per phase, then copies closed state into
+the artifacts and removes the temporary HOME. Artifacts use a new output
+directory; an existing directory is rejected. Neither the installed baton nor
+the user's configuration is changed. Building can fetch the pinned Go module
+dependency.
+
+```text
+sequential: worker -> wait -> worker -> wait ...
+unqueued:   N workers -> shared start barrier -> N allocations
+queued:     N baton run contenders -> one gated slot -> worker -> allocation
+                                                    |
+200 ms memory samples + worker records + kernel events -> JSON + PASS/FAIL
+```
+
+All phases run the same number of workers and the same allocation/hold
+work. Workers fill their allocation with pseudorandom bytes, then write to
+each OS page every 100 ms. They retain the allocation until the hold timer
+expires. Start/end records measure overlap independently of baton status.
+The queued phase declares the allocation with `--mem`, uses one slot, keeps
+memory gating enabled, and retains the production margin, poll interval, and
+recovery window. The benchmark explicitly sets max_wait to 30 seconds rather
+than the production default of 30 minutes. Every timeout warning is counted;
+queued wall time includes that wait and process startup. The default 45-second
+hold and four jobs allow a bounded run on a host already at warning pressure.
+A timeout admission does not prove pressure recovery.
+
+Before each phase, allocation plus a 512 MiB reserve must fit within both
+one quarter of effective RAM and half the reported available memory. Critical
+preflight pressure refuses the benchmark. Critical samples, 1 GiB phase swap
+growth, observation errors, nonzero jobs, or a phase deadline stop only owned
+children and fail. A private stdin pipe reaches workers through baton; EOF
+cancels them even if the parent dies. Normal cancellation also sends TERM to
+the owned direct child; a three-second exec deadline bounds cleanup. Workers
+have a finite hold even if other cleanup fails. No process-name scan or reap
+command is used.
+
+macOS queries structured `log show` output for kernel memorystatus, jetsam,
+and out-of-memory messages, including info messages. The query widens second
+boundaries and counts all matches conservatively. A valid completion marker
+and matching count are required; empty or malformed output fails. Logs can
+omit unpersisted/redacted events, so the report says observed events, not an
+exhaustive host kill census. Linux compares `/proc/vmstat`'s `oom_kill` counter
+before and after each phase; an absent or decreasing counter fails. This is
+host-wide, so an unrelated OOM can fail the benchmark. Exit statuses separately
+detect killed owned jobs; an arbitrary SIGKILL is never labelled a proven OOM.
+Windows builds the helper but does not support these stress measurements.
+
+The first Linux smoke put scheduler state beneath a Docker host-bind artifact
+directory. On this machine's `fakeowner` mount, two contenders both acquired
+an exclusive flock; the same probe on native `/tmp` blocked the second one.
+Both queue writers chose sequence 1, and exclusive ticket-file creation
+detected the collision before a worker ran. The smoke failed. Normal tests
+used native temporary directories, so the full Linux gate had not exposed
+this filesystem mismatch. The stress helper now keeps active lock state on
+the native temporary filesystem and copies evidence out after all children
+exit. Core lock and queue code are unchanged. This host bind mount remains
+unsuitable for shared baton state; use a filesystem with working local locks.
+
+PASS requires all three phases: pressure below critical, peak-minus-start
+swap below 1 GiB, zero observed kill events/killed jobs, every worker complete,
+expected overlap, and each wall time at most 1.2 times measured sequential
+time. Missing phases or observations fail. These are sampled thresholds for
+one bounded workload; they cannot establish safety under arbitrary load or
+an improvement when the unqueued baseline also passes. Raw samples, job
+records, warning logs, event data, config, history, and a binary SHA-256 remain
+beside the machine-readable result. `docs/benchmarks.md` records real runs,
+including a failed short-workload smoke, separately from synthetic tests.
