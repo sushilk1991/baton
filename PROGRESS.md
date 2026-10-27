@@ -1,58 +1,69 @@
 # Progress
 
-Shipped locally: thirteen of seventeen TASKS.md items, through init and MCP.
-Implementation: d3ce3ad. SPEC.md is unchanged. No push, tag, release, or
-remote change. The overall goal remains incomplete.
+Shipped locally: fourteen of seventeen TASKS.md items, through Docs.
+Docs implementation: b1cc100. SPEC.md is unchanged. No runtime Go code or
+existing test assertion changed. No push, tag, release, or remote change.
+The overall goal remains incomplete.
 
 Verified: native `make check` and
-`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0
-with the final code. Both passed vet, race tests, and all five cgo-free
-cross-builds. golangci-lint was unavailable and skipped. Windows compiled;
-its runtime remains unverified.
+`docker run --rm -v "$PWD":/src -w /src golang:1.27 make check` exited 0.
+Both passed vet, race tests, and five cgo-free cross-builds. golangci-lint
+was unavailable and skipped. Native Go was 1.27.0 on darwin/arm64.
 
-`init` previews by default and applies with --yes; --dry-run always prevents
-writes. It installs the shared Agent Skills document, links detected agent
-skill directories, and appends marked instructions to supported global
-files. Aider uses its read-only config field. Optional Claude hooks either
-rewrite heavy Bash calls or block with the exact queued command.
+README now has source installation, a bounded quick start, lane behavior,
+recipes, a primary-source comparison, FAQ, and reversible uninstall steps.
+Release install commands are explicitly preparatory. Reference docs cover
+configuration, shims, cache, observation, cleanup, and workload recipes.
+Community files and GitHub issue/PR templates are present. Architecture
+records the documentation decisions. Benchmarks remain explicitly pending.
 
-A private write-ahead manifest records original bytes and modes, installed
-bytes, links, and created directories. Reinstall resumes interrupted
-publication. Uninstall restores exact originals and removes empty owned
-parents. Modified files, conflicts, and redirected parents fail before
-restoration; later user files remain. Instruction symlinks within home and
-config roots retain their entries. Existing shared skill aliases stay intact.
+The generated defaults come from the compiled CLI through
+scripts/config-reference.sh, with fresh HOME/XDG paths and an empty inherited
+environment. The temporary cache path becomes a comment. Native regeneration
+matched the committed TOML. A refutation with invalid inherited config
+succeeded without modifying its bytes. The script also generated valid TOML
+inside Linux Docker. Shell syntax and both issue-form YAML files passed.
+All 41 local Markdown links and fragments resolved. no-ai-slop final pass
+applied to the new prose.
 
-`mcp` serves five read-only tools over stdio: status, history,
-reap_candidates, gc_candidates, and explain_lane. It validates lifecycle,
-IDs, message size, and argument types; no execution, deletion, or signalling
-option is accepted. Candidate queries leave matching files untouched.
+The real CLI smoke used temporary HOME, USERPROFILE, every inherited XDG_*
+and standard XDG paths, plus isolated Go caches. It exercised make build,
+go install from the checkout, help, the exact README quick start, history,
+status, all config commands, fake-agent install/idempotency/byte restoration,
+shim install/list/bypass/uninstall, cache hit and missing-output restoration,
+GC listing/deletion of one owned file, observational reap, browser stop,
+and an owned watcher's TERM exit 0. No unowned process was signalled.
 
-Fake-HOME tests cover preview, install, idempotency, byte-identical uninstall,
-permission restoration, conflict preservation, interrupted install/uninstall,
-symlink handling, Aider forms, private manifests, and both hook modes. A
-compiled-binary test executes the installed hook and its returned Bash
-command through an ffmpeg shim in a single-slot lane, preserves quoted argv,
-and uninstalls. A real MCP subprocess exercises all five tools and rejects
-unsafe calls. Every HOME and XDG path is temporary.
+Host pressure changed to warn during verification. The first tiny sleep
+waited at the default memory gate and hit the smoke harness's 90-second
+limit. README sleep examples now use --max-wait 2s; the exact quick start
+passed under real warn pressure, with two successful nonoverlapping jobs.
+Real heavy-work recipes retain the default memory wait.
 
-Red evidence: the shim flow waited on its parent's slot and exited 143 on
-cancellation. Passing the existing admission marker to the child shell fixed
-it. Linux also rejected Bash conditionals under sh (127, [[: not found);
-the wrapper now uses Bash. Tests also caught null request IDs/arguments,
-malformed manifests, and indentless Aider lists. Both full gates pass without
-weakening assertions. The no-ai-slop pass was applied to the new prose.
+The VHS parser initially rejected escaped quotes. Backtick string literals
+fixed the tape; the upstream v0.12.1 lexer/parser reported
+"VHS parser: valid tape". Its actual shell commands ran successfully and
+showed demo 1/1 with one queued job. Rendering remains unverified because
+VHS is unavailable. The recording instructions isolate HOME before shell
+startup and disable VHS publication.
 
-Pending: complete only the Docs item next. Read SPEC.md, TASKS.md,
-docs/architecture.md, and existing docs before writing README, configuration
-reference, recipes, demo.tape, comparison, and community files. Preserve the
-implemented behavior and its documented limits. Distribution, stress results,
-and the final gate remain separate iterations.
+Open risk: the first native gate failed TestBrowserLifecycleCLI when
+browser status raced shutdown and found no session.json while the lifetime
+lock remained held. The unchanged test passed three isolated runs, then
+the full native and Docker gates passed. This existing observation race is
+documented; it was not fixed in the Docs item. Keep the failure for the
+Final gate rather than assuming one green run establishes stability.
 
-Limits: live agent loading and a real external MCP client's registration were
-not exercised. Hook classification is advisory; scripts and shell expansions
-can hide work. Keep its installed binary path stable; uninstall/reinstall
-before changing hook mode or binary location. Complex Aider YAML requires
-conversion to a supported filename-list form. Filesystem validation is not a
-sandbox against hostile same-user races. Prior browser, cache, gc, reap,
-scheduling, and platform limits remain in docs/architecture.md.
+Pending: Distribution next, then machine stress and the Final gate.
+Release installation, full external renderer/model/MCP-client flows,
+rendered demo, hosted CI, and Windows runtime remain unverified. No benchmark
+or publication result is claimed.
+
+Evidence is under ignored .yoyo/: docs-native-check.log,
+docs-linux-check.log, docs-smoke.log, docs-static-check.log,
+docs-linux-reference.log, docs-tape-check.log, docs-tape-red.log,
+docs-native-red.log, and docs-browser-retest.log. Only Docs was checked off.
+
+Next: read the Distribution item in TASKS.md and the immutable SPEC.md.
+Prepare distribution without pushing, tagging, publishing, or changing
+remotes. Preserve fake-HOME and owned-process boundaries.

@@ -15,7 +15,7 @@ One item per iteration, in order. Check it off only when its tests pass.
 - [x] Cache (`--cache-key`, `--output`, `cache ls|prune`); test i
 - [x] `browser start|stop|status|endpoint` with idle shutdown and client counting
 - [x] `init` (skill, AGENTS.md/CLAUDE.md snippet, optional Claude Code hook, manifest, `--uninstall`) and `mcp`; test j
-- [ ] Docs: README, docs/*, demo.tape, comparison table, community files
+- [x] Docs: README, docs/*, demo.tape, comparison table, community files
 - [ ] Distribution: .goreleaser.yaml, install.sh, Homebrew formula template, release workflow (do not publish)
 - [ ] `scripts/stress.sh` and `docs/benchmarks.md` with real results from this machine
 - [ ] Final gate: `make check` on macOS, `make check` in `golang:1.27` Docker, every README command re-run
