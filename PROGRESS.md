@@ -32,12 +32,12 @@ Pending: public installation prerequisites and successful reruns of those
 three commands. Final gate stays unchecked; STATUS: DONE was not written.
 See [the verification report](docs/verification.md) for commands and evidence.
 
-Iteration 20 checked the publication prerequisite without rerunning installs.
+Iteration 21 checked the publication prerequisite without rerunning installs.
 `gh-axi release list` returned `count: 0` and `releases: []`.
 `git ls-remote --heads https://github.com/sushilk1991/baton.git` exited 0
 with no branch refs. These current checks support the existing blocker;
 this iteration did not rerun either full gate or change production code.
-Evidence: `.yoyo/iteration20-prerequisites.log`.
+Evidence: `.yoyo/iteration21-prerequisites.log`.
 
 The prior stress task remains complete: native default runs printed PASS,
 including 211.773 seconds queued / 180.761 seconds sequential (1.172), overlap
