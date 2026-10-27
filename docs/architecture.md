@@ -358,7 +358,7 @@ The schema contains these tables:
   interpretation; duration strings use Go's `time.ParseDuration` syntax.
 - `[shims]`: `commands`; `[shims.fast_paths]`: command-to-regex-array
   entries. `[reap]`: `older_than = '2h'`, `grace_period = '5s'`, and regex
-  `matchers`. Later shim/reap tasks consume these validated settings.
+  `matchers`. Shims consume these settings; reap remains a later task.
 - `[gc]`: absolute `roots`, relative slash `patterns`, and
   `older_than = '168h'`. Roots default to empty, so no cleanup is enabled.
   Patterns cannot contain parent traversal. `[cache]`: absolute `dir`,
@@ -460,3 +460,75 @@ completion history, filtering, valid rotation under concurrent writes,
 stale owners, damaged live metadata, cancellation, watch frames and signals,
 output errors, and terminal control characters. Test jobs use temporary
 HOME/XDG paths and release only their own processes.
+
+## Shims
+
+`internal/shim` installs wrappers in `XDG_DATA_HOME/baton/shims`. Unix
+wrappers use `/bin/sh` and `exec` the absolute baton binary; Windows gets
+`.cmd` wrappers. The private `shim exec` entry point resolves the real tool
+on each call, then passes its absolute path and unchanged argv to
+`runner.Run --lane auto`. Upgrading a tool does not require reinstalling
+its shim. Moving baton itself requires uninstalling from its original path
+and reinstalling at the new path.
+
+```text
+PATH -> shim -> baton shim exec -> resolve PATH without shim directories
+                                      |
+                          +-----------+------------+
+                          |                        |
+                    configured fast path      runner -> queue -> child
+                    or BATON=off                   |
+                          |                  history + learned RSS
+                     direct execution
+```
+
+Resolution excludes the shim directory, symlink aliases, links to baton,
+and other generated wrappers. An inherited chain of hashed command/argv/cwd
+signatures detects repeated invocations, including an external wrapper
+that calls itself through PATH. Different arguments or working directories
+have different signatures; raw arguments are not added to the environment.
+Missing executables return 127; recursion and non-executable targets return
+126. The guard remains active under `BATON=off` to prevent bypass loops.
+
+Fast-path regexes match space-joined arguments, excluding the command name.
+Defaults bypass all `ffprobe` calls and `ffmpeg -version`, `-h`, `-help`,
+and `-f null`. Overrides use the validated config projection; no defaults
+are duplicated in the shim layer. Fast paths skip slots, pressure checks,
+history, and learning. `BATON=off` also skips TOML loading. Unix bypasses
+replace baton with the real process, preserving its PID and descriptors.
+Windows waits for the child and returns its exit code; native Windows
+runtime, batch-tool targets, and shell argument escaping remain unverified.
+
+`install` without names considers configured commands and reports missing
+tools as skipped. Explicit missing names fail before installing any files.
+Names are validated, deduplicated, and preflighted before publication.
+Shell quoting preserves literal Unix paths, including single quotes.
+Shell guidance supports sh/zsh/bash, fish, and best-effort Windows cmd and
+PowerShell. No command edits shell configuration.
+
+An admitted shim job marks its descendants through an inherited environment
+value. Descendant shims resolve their tools and execute directly within the
+parent reservation; they add no tickets or history. Otherwise a tool such
+as `ffmpeg outer` invoking `ffmpeg inner` could wait forever for its own
+slot. Unmatched root commands carry no reservation marker. Descendants can
+still outlive a crashed wrapper, as described under command execution.
+
+A SHA-256 manifest records owned wrapper bytes. Install, uninstall, and
+manifest writes share a kernel management lock; a competing management
+command fails explicitly rather than mixing changes. List is read-only.
+Wrappers publish through a complete temporary file and a non-replacing
+hard link; the manifest updates atomically after each file. Reinstall can
+adopt an exact wrapper left by a crash before manifest publication. An
+interrupted uninstall tolerates missing files. Conflicts, changed bytes,
+symlinked wrappers, and a symlinked shim directory fail without replacement
+or deletion. Unrelated directory entries are retained. The shared lock is
+never unlinked.
+
+Real CLI tests invoke installed wrappers through PATH with temporary home
+and XDG directories. They cover automatic encode admission behind an
+occupied slot, release, exit 37, literal argv, a quoted baton path, changed
+real executables, symlink aliases, direct fast paths, bypass with broken
+TOML, recursive external wrappers, nested jobs without another reservation
+or history record, and owned-file uninstall. Unit tests cover policy
+overrides, missing tools, manifest recovery, user-file
+preservation, invalid names, management contention, and closed output.

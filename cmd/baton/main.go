@@ -8,6 +8,7 @@ import (
 
 	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/runner"
+	"github.com/sushilk1991/baton/internal/shim"
 )
 
 const (
@@ -24,6 +25,7 @@ Commands:
   config  Initialize, show, locate, or validate configuration
   status  Show running jobs, queues, slots, and memory
   history Show completed jobs
+  shim    Install, list, or uninstall command wrappers
 `
 )
 
@@ -53,6 +55,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "history" {
 		return runner.History(args[1:], stdout, stderr)
+	}
+
+	if args[0] == "shim" {
+		if len(args) > 1 && args[1] == "exec" {
+			return shim.Invoke(args[2:])
+		}
+		return shim.Run(args[1:], stdout, stderr)
 	}
 
 	// Fail explicitly until each command exists, so agents cannot infer success.
