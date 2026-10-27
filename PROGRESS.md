@@ -32,13 +32,13 @@ Pending: public installation prerequisites and successful reruns of those
 three commands. Final gate stays unchecked; STATUS: DONE was not written.
 See [the verification report](docs/verification.md) for commands and evidence.
 
-Iteration 24 checked for external publication without rerunning installs.
+Iteration 25 checked for external publication without rerunning installs.
 `gh-axi release list` returned `count: 0` and `releases: []`.
 `git ls-remote --heads --tags https://github.com/sushilk1991/baton.git`
-exited 0 with no refs. Neither full gate ran and no production code changed.
-Evidence: `.yoyo/iteration24-prerequisites.log`. Stop automatic retries until
-the caller resolves publication outside this task; another local gate cannot
-supply the missing public sources.
+exited 0 with no refs. The README installer URL returned HTTP 404; curl
+exited 56. Neither full gate ran and no production code changed.
+Evidence: `.yoyo/iteration25-prerequisites.log`. Stop automatic retries until
+the caller resolves publication outside this task. Final gate stays open.
 
 The prior stress task remains complete: native default runs printed PASS,
 including 211.773 seconds queued / 180.761 seconds sequential (1.172), overlap
