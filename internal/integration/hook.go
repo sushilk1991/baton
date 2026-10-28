@@ -16,7 +16,7 @@ const (
 )
 
 func hook(in io.Reader, out, diagnostics io.Writer, policy hookPolicy) int {
-	if os.Getenv("BATON") == "off" {
+	if os.Getenv("BATON") == batonDisabled {
 		return 0
 	}
 	if err := rewriteHook(in, out, policy); err != nil {

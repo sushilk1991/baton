@@ -32,7 +32,52 @@ func TestHookExecutables(t *testing.T) {
 		{"npx --package ffmpeg -- cat chrome.txt", ""},
 		{"npx -c 'ffmpeg -i a b'", ""},
 		{"time -o ffmpeg true", ""},
+		{"BATON=off ffmpeg -i a b", ""},
+		{"BATON='off' npm ci", ""},
+		{"env BATON=off uv sync", ""},
+		{"nice -n 5 env BATON=off ollama run model", ""},
+		{"BATON=on BATON=off ffmpeg -i a b", ""},
+		{"ollama list", ""},
+		{"ollama ps", ""},
+		{"ollama show model", ""},
+		{"npx ollama list", ""},
+		{"pnpm exec ollama ps", ""},
+		{"uv pip list", ""},
+		{"npx uv pip list", ""},
+		{"uv pip show package", ""},
+		{"uv pip freeze", ""},
+		{"uv pip check", ""},
+		{"uv pip tree", ""},
+		{"xcodebuild -showBuildSettings", ""},
+		{"npm exec -- xcodebuild -showBuildSettings", ""},
+		{"xcodebuild -project App.xcodeproj -showBuildSettings -json", ""},
+		{"xcodebuild -list", ""},
+		{"xcodebuild -showsdks", ""},
+		{"xcodebuild -showdestinations", ""},
+		{"ffmpeg --help", ""},
+		{"ollama --version", ""},
+		{"uv pip install --help", ""},
+		{"xcodebuild --version", ""},
+		{"npx remotion render --help", ""},
+		{"pnpm exec playwright --version", ""},
+		{"./scripts/chrome-debug.sh", ""},
+		{"./scripts/whisper-test.py", ""},
+		{"./scripts/remotion-preview.js", ""},
+		{"npx ./scripts/chrome-debug.sh", ""},
 		{"ffmpeg -i a.mp4 b.mp4", "encode"},
+		{"BATON=off BATON=on ffmpeg -i a b", "encode"},
+		{"BATON=off ffmpeg -i a b; npm ci", "install"},
+		{"ollama run model", "ml"},
+		{"ollama run list", "ml"},
+		{"uv pip install package", "install"},
+		{"uv pip install list", "install"},
+		{"uv pip install ./whisper-test.py", "install"},
+		{"uv pip uninstall package", "install"},
+		{"llama.cpp --model model.gguf", "ml"},
+		{"xcodebuild -project App.xcodeproj build", "build"},
+		{"ffmpeg -i --helpful out.mp4", "encode"},
+		{"ffmpeg --help; npm ci", "install"},
+		{"echo --version && ollama run model", "ml"},
 		{"npx remotion render", "render"},
 		{"FOO=1 ffmpeg -i a b", "encode"},
 		{"2>log ffmpeg -i a b", "encode"},
@@ -61,6 +106,7 @@ func TestHookExecutables(t *testing.T) {
 	} {
 		t.Run(tc.command, func(t *testing.T) {
 			isolate(t)
+			t.Setenv("TMPDIR", t.TempDir())
 			t.Setenv("SHELL", "/bin/sh")
 			var out, diag bytes.Buffer
 			input, err := json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": tc.command, "timeout": 123}})
@@ -73,6 +119,10 @@ func TestHookExecutables(t *testing.T) {
 			if tc.lane == "" {
 				if out.Len() != 0 {
 					t.Fatalf("argument selected a lane: %s", &out)
+				}
+				// Both hook policies leave lightweight and opted-out commands alone.
+				if code := Run([]string{"_hook-block"}, bytes.NewReader(input), &out, &diag); code != 0 || out.Len() != 0 || diag.Len() != 0 {
+					t.Fatalf("unexpected block: code=%d %s %s", code, &out, &diag)
 				}
 				return
 			}

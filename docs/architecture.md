@@ -1118,12 +1118,26 @@ the whole command's lane. This keeps compound commands intact without
 reserving several lanes. A segment already executing `baton run` is skipped
 without hiding later bare heavy commands.
 
+Literal `BATON=off` assignments bypass their segment, including through
+`env`; the last assignment wins. Later segments are still classified.
+The hook skips exact `--help` and `--version` arguments, Ollama's
+`list`/`ls`/`ps`/`show`/`help`, `uv pip list`/`show`/`freeze`/`check`/`tree`,
+and xcodebuild's `-help`, `-version`, `-list`, `-showsdks`,
+`-showdestinations`, and `-showBuildSettings`, including launcher targets.
+Other arguments do not select these paths: `ollama run list` and
+`uv pip install list` still queue.
+Known shell, Python, JavaScript/TypeScript, Ruby, Perl, PowerShell, and batch
+script extensions stay opaque, including launcher targets such as
+`npx ./scripts/chrome-debug.sh`. The hook does not inspect script files;
+an extensionless executable still follows configured basename matchers.
+
 No shell command executes during classification. Quotes, escapes, comments,
 and redirection targets are recognized; shell expansions, functions, script
-contents, here-documents, and `env -S` remain opaque. Use explicit commands
-and shims for those forms and custom commands whose operation is not
-recognized. The runner passes explicit-run reservations to its children;
-shell holds use the ancestry check above. Installed hook commands and their
+contents, here-documents, and `env -S` remain opaque. Shell grammar such as
+`if true; then npm ci; fi` is not parsed and can remain unqueued.
+Use explicit commands and shims for those forms and custom commands whose
+operation is not recognized. The runner passes explicit-run reservations
+to its children; shell holds use the ancestry check above. Installed hook commands and their
 `hold` prefixes use the absolute invoked path, resolved through PATH from
 `os.Args[0]`, with symlinks retained, matching shim installation. A package
 upgrade can retarget that link and remove the old version without breaking

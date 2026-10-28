@@ -1,5 +1,39 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 8 (2026-10-28)
+
+Shipped locally: hook classification gaps; only that queue item is checked.
+Literal BATON=off assignments skip their segment; the last assignment wins.
+Help/version flags, the documented Ollama/uv/xcodebuild queries, and known
+script extensions bypass lane matching, including launcher targets. Heavy
+operations and later segments still queue. Architecture records the rules
+and the if/then and extensionless-script limits.
+
+Verified: native make check and Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Ninety hook command cases cover
+both rewrite and blocking policies. Thirteen compiled-CLI cases preserve
+fake-tool stdout and exit 3; two heavy controls acquire holds, then public
+status reports running=0 and queue=0. All checks isolate HOME, USERPROFILE,
+XDG paths, TMPDIR, and Go writes.
+
+Evidence: .yoyo/re-review-hook-gaps-red-native.log records 30 failures before
+production edits. The launcher refutation records three more failures after
+the first fix; launcher targets now receive the same filters. Green logs
+are -targeted, -cli, -native, -linux, and -lint under the same prefix.
+The first native gate failed in unchanged TestInstalledHookFlow's TempDir
+cleanup after its assertions passed. Five isolated repeats and the full
+gate passed unchanged. A detached holder finishing state writes is a
+possible contributor; the cleanup error alone does not prove the cause.
+The failed gate remains in -native-first.log; repeats are -installed-native.
+
+Pending: settings bytes, reap listing reasons, and the second-pass final
+gate. Live Claude loading and Windows runtime were not exercised. No push,
+tag, publication, remote change, or real agent settings write occurred.
+SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md, then write the settings-byte round-trip red.
+
 ## Re-review fixes, second pass, iteration 7 (2026-10-28)
 
 Shipped locally: runtime-only agent labels; only that queue item is checked.
