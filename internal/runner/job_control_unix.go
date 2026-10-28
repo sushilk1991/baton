@@ -95,7 +95,7 @@ func waitGroup(command *exec.Cmd, changed func(string)) error {
 		// Publish before stopping Go's sampler. An outside STOP is local to
 		// the child; only terminal stop signals suspend the caller's shell job.
 		changed(phaseStopped)
-		if !terminalStop(syscall.Signal(info.status)) {
+		if !terminalStop(command, syscall.Signal(info.status)) {
 			continue
 		}
 		err = suspendJob(command)
@@ -108,8 +108,27 @@ func waitGroup(command *exec.Cmd, changed func(string)) error {
 	}
 }
 
-func terminalStop(stop syscall.Signal) bool {
-	return stop == syscall.SIGTSTP || stop == syscall.SIGTTIN || stop == syscall.SIGTTOU
+func terminalStop(command *exec.Cmd, stop syscall.Signal) bool {
+	if stop == syscall.SIGTSTP || stop == syscall.SIGTTIN || stop == syscall.SIGTTOU {
+		return true
+	}
+	if stop != syscall.SIGSTOP {
+		return false
+	}
+
+	// nano and mutt answer Ctrl-Z by catching SIGTSTP and stopping their
+	// group with SIGSTOP. A foreground child that catches SIGTSTP is
+	// treated as Ctrl-Z; any other SIGSTOP is an outside stop.
+	// Ctrl-Z -> child TSTP handler -> kill(0, SIGSTOP) -> suspend the job
+	var foreground int32
+	if err := terminalGroup(uintptr(command.SysProcAttr.Ctty), syscall.TIOCGPGRP, &foreground); err != nil {
+		return false
+	}
+	if int(foreground) != command.Process.Pid {
+		return false
+	}
+	caught, err := catchesSignal(command.Process.Pid, syscall.SIGTSTP)
+	return err == nil && caught
 }
 
 func waitChild(pid, options int) (childWaitInfo, error) {

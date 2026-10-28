@@ -274,12 +274,17 @@ A terminal stop (SIGTSTP, SIGTTIN, SIGTTOU) stops the whole child group,
 returns the tty to baton's group if the child owns it, and sends SIGSTOP to
 baton's entire process group. This also stops a non-interactive sh, make,
 or npm parent waiting in that shell job. One Ctrl-Z then returns the prompt.
-An outside SIGSTOP of the child updates stopped status but leaves baton
-waiting and runnable; an outside SIGCONT updates running status. Stopped
+A SIGSTOP also counts as a terminal stop when the child's group owns the
+tty and the child catches SIGTSTP: nano and mutt answer Ctrl-Z by
+stopping their group with SIGSTOP. Linux reads the caught-signal mask
+from /proc/<pid>/status; macOS reads p_sigcatch from kinfo_proc.
+Any other outside SIGSTOP of the child updates stopped status but leaves
+baton waiting and runnable; an outside SIGCONT updates running status. Stopped
 jobs retain their slots because their processes and allocations still exist.
 
 ```text
 Ctrl-Z -> child group stops -> baton + parent group stop -> shell owns tty
+Ctrl-Z -> TSTP handler -> kill(0, SIGSTOP) -> treated as Ctrl-Z above
 fg -> caller group resumes -> child owns tty -> child group resumes
 outside STOP/CONT -> child state changes -> baton keeps waiting
 exit -> Cmd.Wait -> history -> slot released
