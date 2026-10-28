@@ -32,6 +32,7 @@ type options struct {
 	uid, self    int
 	home, config string
 	match        func([]string) bool
+	hostInit     bool
 }
 
 type driver interface {
@@ -105,9 +106,9 @@ func runReap(out io.Writer, yes, override bool, age time.Duration) error {
 	if override {
 		older = age
 	}
-	opts := options{older: older, grace: grace, uid: currentUID(), self: os.Getpid(), home: home, config: paths.ConfigFile, match: settings.ReapMatch}
 	ctx, cancel := context.WithTimeout(context.Background(), scanLimit)
 	defer cancel()
+	opts := options{older: older, grace: grace, uid: currentUID(), self: os.Getpid(), home: home, config: paths.ConfigFile, match: settings.ReapMatch, hostInit: systemDriver{}.hostInit(ctx)}
 	rows, err := process.List(ctx)
 	if err != nil {
 		return fmt.Errorf("process discovery: %w", err)
@@ -159,10 +160,16 @@ func eligible(row process.Info, opts options, now time.Time, origins map[int]str
 	if row.PID <= initPID || row.PID == opts.self || row.UID != opts.uid || row.Dead || row.Start == "" || row.Started.IsZero() || now.Sub(row.Started) < opts.older || len(row.Args) == 0 {
 		return false
 	}
-	if row.Parent != initPID && origins[row.PID] != row.Start {
-		return false
+	// A dead recorded owner proves provenance. Host-init adoption alone
+	// authorizes only headless browsers and automation drivers.
+	proof := recordedJob
+	if origins[row.PID] != row.Start {
+		if row.Parent != initPID || !opts.hostInit {
+			return false
+		}
+		proof = adoptedJob
 	}
-	return heavy(row.Args, opts) && opts.match(row.Args)
+	return heavy(row.Args, opts, proof) && opts.match(row.Args)
 }
 
 func revalidate(ctx context.Context, d driver, expected process.Info, opts options, origins map[int]string) (bool, error) {

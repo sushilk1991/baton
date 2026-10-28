@@ -15,11 +15,15 @@ file is useful. Re-run immediately before acting and review the selection.
 baton reap --older-than 2h
 ```
 
-Reap considers same-user heavy processes old enough to match the age rule,
-reparented to init/launchd or tied by recorded birth identity to a dead
-runner. Chrome-family candidates need headless or remote-debugging flags.
-Recognized interactive-browser profiles are excluded. Configured regexes
-further restrict candidates; they cannot make arbitrary processes eligible.
+Reap considers same-user heavy processes old enough to match the age rule
+and tied by recorded birth identity to a dead runner. Headless browsers and
+automation drivers also qualify after verified host-init adoption, outside
+containers. Encoders and renderers always need the matching job record.
+Chrome-family candidates need `--headless`; `chrome-headless-shell` needs
+no flag. Headed browsers and recognized interactive-browser profiles are
+excluded. Configured regexes further restrict candidates; they cannot make
+arbitrary processes eligible. See [host detection](architecture.md#reaping-orphan-processes)
+for the conservative fallback when Linux container detection is unavailable.
 
 After reviewing, `baton reap --older-than 2h --yes` sends TERM, waits the
 configured five-second grace period, then revalidates surviving identities

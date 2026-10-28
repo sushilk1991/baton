@@ -5,16 +5,30 @@ import (
 	"strings"
 )
 
-func heavy(args []string, opts options) bool {
+type provenance uint8
+
+const (
+	recordedJob provenance = iota
+	adoptedJob
+)
+
+func heavy(args []string, opts options, proof provenance) bool {
 	name := strings.TrimSuffix(strings.ToLower(filepath.Base(args[0])), ".exe")
 	if browserName(name) {
+		// The dedicated shell is headless even without a headless flag.
+		if name == "chrome-headless-shell" {
+			return safeBrowser(append([]string{"--headless"}, args[1:]...), opts)
+		}
 		return safeBrowser(args[1:], opts)
 	}
-	if name == "ffmpeg" || name == "chrome-devtools-mcp" || name == "playwright" || name == "puppeteer" {
+	if name == "ffmpeg" {
+		return proof == recordedJob
+	}
+	if name == "chrome-devtools-mcp" || name == "playwright" || name == "puppeteer" {
 		return true
 	}
 	if name == "remotion" || name == "hyperframes" {
-		return hasRender(args[1:])
+		return proof == recordedJob && hasRender(args[1:])
 	}
 	if name != "node" && name != "nodejs" {
 		return false
@@ -28,24 +42,27 @@ func heavy(args []string, opts options) bool {
 			}
 			continue
 		}
-		return driverScript(arg, args[1:])
+		return driverScript(arg, args[1:], proof)
 	}
 	return false
 }
 
-func driverScript(path string, args []string) bool {
+func driverScript(path string, args []string, proof provenance) bool {
 	path = "/" + strings.Trim(strings.ToLower(filepath.ToSlash(path)), "/")
 	if strings.Contains(path, "/node_modules/.bin/") {
 		name := filepath.Base(path)
 		if name == "chrome-devtools-mcp" || name == "playwright" || name == "puppeteer" {
 			return true
 		}
-		return (name == "remotion" || name == "hyperframes") && hasRender(args)
+		return proof == recordedJob && (name == "remotion" || name == "hyperframes") && hasRender(args)
 	}
 	for _, segment := range []string{"/node_modules/chrome-devtools-mcp/", "/node_modules/playwright/", "/node_modules/playwright-core/", "/node_modules/puppeteer/", "/node_modules/puppeteer-core/", "/playwright/driver/"} {
 		if strings.Contains(path, segment) && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs")) {
 			return true
 		}
+	}
+	if proof != recordedJob {
+		return false
 	}
 	for _, segment := range []string{"/node_modules/@remotion/cli/", "/node_modules/remotion/", "/node_modules/hyperframes/", "/node_modules/@hyperframes/"} {
 		if strings.Contains(path, segment) && hasRender(args) {
@@ -74,7 +91,7 @@ func browserName(name string) bool {
 }
 
 func safeBrowser(args []string, opts options) bool {
-	var headless, remote bool
+	var headless bool
 	var profile string
 	for i, arg := range args {
 		if arg == "--" {
@@ -82,9 +99,6 @@ func safeBrowser(args []string, opts options) bool {
 		}
 		if arg == "--headless" || strings.HasPrefix(arg, "--headless=") {
 			headless = true
-		}
-		if strings.HasPrefix(arg, "--remote-debugging-") {
-			remote = true
 		}
 		if strings.HasPrefix(arg, "--user-data-dir=") {
 			profile = strings.TrimPrefix(arg, "--user-data-dir=")
@@ -102,14 +116,7 @@ func safeBrowser(args []string, opts options) bool {
 			return false
 		}
 	}
-	if !headless && !remote {
-		return false
-	}
-	if profile == "" {
-		// Debugging an interactive default profile does not authorize reaping.
-		return headless
-	}
-	return true
+	return headless
 }
 
 func defaultProfile(profile string, opts options) bool {

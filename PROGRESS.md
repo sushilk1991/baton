@@ -1,5 +1,32 @@
 # Progress
 
+## Review fixes, iteration 1 (2026-10-28)
+
+Shipped locally: reap safety only; the first review item is checked off.
+Headed browsers are excluded even with a matching job record. Encoders and
+renderers require a matching birth record from a dead owner. Unrecorded
+headless browsers and automation drivers require verified host-init adoption.
+
+Verified: native `make check`, `golang:1.27` Docker `make check`, and
+`golangci/golangci-lint:v2.15.0` all exited 0; lint reported `0 issues.`
+Both checks passed race tests, vet, and all five cross-builds. Tests used
+private HOME/XDG paths and only signalled their own fakes. Native CLI tests
+preserved five protected fakes and removed two eligible ones. The Docker
+regression exercised non-init PID 1 adoption. Red evidence precedes the fix:
+`.yoyo/review-reap-red-native.log` and `.yoyo/review-reap-red-linux.log`.
+Green evidence: `.yoyo/review-reap-{native,linux,lint,targeted}.log`.
+
+Pending: six review fixes, starting with nested jobs, then Final gate.
+Linux host adoption needs `/usr/bin/systemd-detect-virt`; missing or
+ambiguous detection requires job provenance. Bare-host Linux adoption was
+not exercised. This decision is documented in `docs/architecture.md`.
+The current queue permits recording public installs as pending owner
+publication; the earlier publication blocker below is superseded.
+
+Next: read `.yoyo/loop-state.md`, then add the nested-job red regression.
+
+## Earlier phase-1 progress
+
 Not verified: Final gate remains open. All three public README install
 commands fail. Source/release/tap publication is forbidden in this task.
 

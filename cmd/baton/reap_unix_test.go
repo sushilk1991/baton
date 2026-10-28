@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -90,14 +91,22 @@ func TestReapCLI(t *testing.T) {
 	interactive := startReapFake(t, root, "chrome", "interactive", orphanParent, exitsOnTerm)
 	active := startReapFake(t, root, "ffmpeg", "active", ownedParent, exitsOnTerm)
 	profile := startReapFake(t, root, "chrome", "profile", orphanParent, exitsOnTerm, "--headless", "--user-data-dir="+filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "Google", "Chrome"))
-	all := []process.Info{headless, remote, stubborn, interactive, active, profile}
+	unrecorded := startReapFake(t, root, "ffmpeg", "unrecorded", orphanParent, exitsOnTerm)
+	all := []process.Info{headless, remote, stubborn, interactive, active, profile, unrecorded}
+	// Encoders need provenance everywhere. Containers also need it for
+	// headless browsers; headed browsers remain protected with provenance.
+	writeReapOrigin(t, stubborn)
+	writeReapOrigin(t, remote)
+	if runtime.GOOS == "linux" {
+		writeReapOrigin(t, headless)
+	}
 
 	// The default two-hour threshold must exclude newly orphaned jobs.
 	if out := shimCLI(t, baton, 0, "reap"); !strings.Contains(out, "0 reap candidate") {
 		t.Fatalf("ignored default age: %s", out)
 	}
 	out := shimCLI(t, baton, 0, "reap", "--older-than", "0s")
-	assertReapPIDs(t, out, []process.Info{headless, remote, stubborn}, []process.Info{interactive, active, profile})
+	assertReapPIDs(t, out, []process.Info{headless, stubborn}, []process.Info{remote, interactive, active, profile, unrecorded})
 	for _, row := range all {
 		assertReapAlive(t, row)
 	}
@@ -108,23 +117,38 @@ func TestReapCLI(t *testing.T) {
 	for _, row := range all {
 		assertReapAlive(t, row)
 	}
-	t.Logf("dry-run selected only three owned orphan fakes:\n%s", out)
+	t.Logf("dry-run selected only two owned orphan fakes:\n%s", out)
 	out = shimCLI(t, baton, 0, "reap", "--older-than", "0s", "--yes")
-	for _, row := range []process.Info{headless, remote, stubborn} {
+	for _, row := range []process.Info{headless, stubborn} {
 		current, err := process.Read(context.Background(), row.PID)
 		if err == nil && process.Same(row, current) {
 			t.Fatalf("selected process remains alive: %d", row.PID)
 		}
 	}
-	for _, name := range []string{"headless", "remote", "stubborn"} {
+	for _, name := range []string{"headless", "stubborn"} {
 		if _, err := os.Stat(filepath.Join(root, name) + ".term"); err != nil {
 			t.Fatalf("TERM was not observed by %s: %v", name, err)
 		}
 	}
-	for _, row := range []process.Info{interactive, active, profile} {
+	for _, row := range []process.Info{remote, interactive, active, profile, unrecorded} {
 		assertReapAlive(t, row)
 	}
-	t.Logf("--yes removed all selected identities, including TERM-ignoring fake; three protected fakes remain alive:\n%s", out)
+	t.Logf("--yes removed selected identities, including TERM-ignoring fake; five protected fakes remain alive:\n%s", out)
+}
+
+// Simulate a crashed baton owner with a real, already-exited helper PID.
+func writeReapOrigin(t *testing.T, row process.Info) {
+	t.Helper()
+	owner := exec.Command("/bin/sh", "-c", "exit 0")
+	if err := owner.Run(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(map[string]any{"pid": row.PID, "owner_pid": owner.Process.Pid, "process_start": row.Start})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton", "jobs", strconv.Itoa(row.PID)+".json")
+	writeShimFile(t, path, string(data), 0600)
 }
 
 func TestReapRecordedOwner(t *testing.T) {
@@ -156,6 +180,33 @@ func TestReapRecordedOwner(t *testing.T) {
 	current, err := process.Read(context.Background(), row.PID)
 	if err == nil && process.Same(row, current) {
 		t.Fatalf("recorded orphan %d remains alive", row.PID)
+	}
+}
+
+// Container PID 1 adoption cannot authorize cleanup of unrecorded work.
+func TestReapContainerInit(t *testing.T) {
+	isolateHome(t)
+	if runtime.GOOS != "linux" {
+		t.Skip("requires a Linux container with a non-system-init PID 1")
+	}
+	name, err := os.ReadFile("/proc/1/comm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(name)) == "systemd" || strings.TrimSpace(string(name)) == "init" {
+		t.Skip("requires a non-system-init PID 1")
+	}
+	t.Logf("PID 1 executable: %s", strings.TrimSpace(string(name)))
+	baton := buildShimCLI(t)
+	root := t.TempDir()
+	writeShimFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton", "config.toml"), "[reap]\ngrace_period='50ms'\nmatchers=['^"+regexp.QuoteMeta(root)+"/']\n", 0600)
+	headless := startReapFake(t, root, "chrome", "headless", orphanParent, exitsOnTerm, "--headless")
+	driver := startReapFake(t, root, "playwright", "driver", orphanParent, exitsOnTerm, "run-driver")
+	encoder := startReapFake(t, root, "ffmpeg", "encoder", orphanParent, exitsOnTerm)
+	rows := []process.Info{headless, driver, encoder}
+	assertReapPIDs(t, shimCLI(t, baton, 0, "reap", "--older-than", "0s", "--yes"), nil, rows)
+	for _, row := range rows {
+		assertReapAlive(t, row)
 	}
 }
 

@@ -44,8 +44,7 @@ func readOrigins(ctx context.Context, d driver, root string) (map[int]string, er
 		if err := json.Unmarshal(data, &record); err != nil {
 			return nil, fmt.Errorf("job record %s: %w", path, err)
 		}
-		// Old records without a kernel birth token cannot prove ownership;
-		// they still qualify through direct reparenting to init/launchd.
+		// Old records without a kernel birth token cannot prove ownership.
 		if record.PID <= initPID || record.Owner <= initPID || record.Start == "" {
 			continue
 		}

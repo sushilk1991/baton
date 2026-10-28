@@ -558,13 +558,24 @@ OS snapshot + stale job birth/owner records
 ```
 
 Selection requires the current effective UID, a readable kernel birth
-identity, and either parent PID 1 or a matching job record whose recorded
-owner is dead. New runner records store `process_start`; old records
-without it qualify only through direct init/launchd adoption. A stale PID
-alone is insufficient. Linux identities include the boot ID and start
-ticks; macOS uses kernel start seconds and microseconds. Unreadable owner
-metadata is an error, not evidence of death. Reap leaves all state files
-unchanged.
+identity, and either a matching job record whose recorded owner is dead
+or verified host-init adoption of a headless browser or automation driver.
+ffmpeg and Remotion/HyperFrames renderers always require a matching record.
+Records without `process_start` cannot prove ownership. A stale PID alone
+is insufficient. Linux identities include the boot ID and start ticks;
+macOS uses kernel start seconds and microseconds. Unreadable owner metadata
+is an error, not evidence of death. Reap leaves all state files unchanged.
+
+PID 1 alone proves nothing. macOS checks `/bin/ps` for `/sbin/launchd`.
+Linux requires `/proc/1/comm` to name `init` or `systemd`, then requires
+`/usr/bin/systemd-detect-virt --container` to print `none` with exit code 1.
+The detector distinguishes systemd running on a host from systemd running
+inside a container. Its
+[output and exit behavior](https://github.com/systemd/systemd/blob/main/src/detect-virt/detect-virt.c)
+are checked together: a missing utility, unreadable init, or ambiguous
+result disables adoption-based selection. Recorded jobs still qualify.
+This conservative fallback avoids treating an incomplete list of container
+marker files as proof of a host.
 
 Known executable names identify ffmpeg, browser automation drivers, and
 Remotion/HyperFrames render commands. Node drivers require a recognized
@@ -575,15 +586,17 @@ an empty matcher list disables it. They cannot override the browser guards.
 Opaque wrappers and unnamed custom drivers require a later driver rule;
 reap does not infer their identity from incidental argument substrings.
 
-Browsers require an actual `--headless` or `--remote-debugging-*` argument
-before `--`. Debugging without headless mode also requires an explicit
-private absolute profile path. Known normal Chrome, Chromium, and Edge
+Browsers require an actual `--headless` argument before `--`, including
+forms such as `--headless=new`. The `chrome-headless-shell` executable is
+inherently headless and needs no flag. Remote debugging and a private
+profile never authorize reaping a headed browser, even with a job record.
+Known normal Chrome, Chromium, and Edge
 profile directories are protected, including aliases and subdirectories.
 Known profile paths are compared without case to protect case-insensitive
 filesystems; this also conservatively excludes case variants on Linux.
 Every explicit profile argument is checked, so a later duplicate cannot
 hide a normal profile. Headless mode without an explicit profile remains
-eligible. A browser with no automation flags is always excluded.
+eligible.
 
 macOS enumerates PIDs with `ps`, then reads
 [XNU proc_bsdinfo](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/proc_info.h)
@@ -618,10 +631,12 @@ it does not establish that inaccessible processes are absent.
 
 Native CLI integration tests spawn their own named process fakes and let
 owned launchers exit. A temporary-directory matcher excludes every existing
-machine process. Dry-run lists three orphans while leaving all six fakes
-alive. `--yes` delivers TERM and removes all three selected identities,
-including a fake that ignores TERM; active children and interactive/default
-profile browsers survive. Separate tests cover recorded dead owners,
+machine process. Dry-run lists two orphans while leaving all seven fakes
+alive. `--yes` delivers TERM and removes both selected identities,
+including a fake that ignores TERM; unrecorded encoders, active children,
+and headed/default-profile browsers survive. A Linux container test keeps
+unrecorded browsers, drivers, and encoders alive despite PID 1 adoption.
+Separate tests cover recorded dead owners,
 reused PIDs, live owners, changed argv, lost orphan status, closed output,
 parser errors, profile aliases, and config overrides.
 
