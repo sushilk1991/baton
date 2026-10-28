@@ -1,5 +1,34 @@
 # Progress
 
+## Final gate, iteration 8 (2026-10-28)
+
+Shipped locally: Final gate only; every TASKS.md item is checked off.
+Verification records changed; production code, SPEC.md, and README.md did
+not. No push, tag, release, remote change, or real agent-file write occurred.
+
+Verified: fresh native and golang:1.27 Docker make check exited 0, including
+vet, race tests, and five cross-builds. Pinned golangci-lint v2.15.0 reported
+0 issues and exited 0. All nine README shell blocks ran under private
+HOME/XDG/Go paths and an isolated Homebrew prefix: 17/20 invocations exited
+0, all 21 behavior assertions passed, and no invocation timed out. Demo jobs
+did not overlap; integration uninstall restored original bytes; an owned
+headless browser stopped and its profile was removed. The audit confirmed
+current README coverage and binary provenance. Existing passing stress JSON
+matches the committed benchmark reports; stress was not rerun.
+
+Pending: owner publication and successful public Homebrew, installer, and
+Go @latest checks. Their actual exits were 1, 56 (HTTP 404), and 1; the fresh
+release query returned zero releases. The current TASKS.md exception makes
+these pending publication, rather than a Final gate blocker. Hosted CI,
+Windows runtime, VHS rendering, and third-party recipes remain unverified.
+
+Evidence: .yoyo/final-gate-{native,linux,lint,readme,environment,audit}.log,
+.yoyo/final-gate-readme/manifest.json, and docs/verification.md. No new bug
+fix was needed, so this verification-only iteration has no new red test.
+The earlier seven fixes retain their captured red runs under .yoyo/.
+
+Next: after owner publication, rerun the three public installation commands.
+
 ## Review fixes, iteration 7 (2026-10-28)
 
 Shipped locally: Agent label only; the seventh review item is checked off.
