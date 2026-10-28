@@ -169,11 +169,12 @@ func acquire(ctx context.Context, path string) (*lockfile.Lock, error) {
 }
 
 func observeReady(ctx context.Context, root string) (session, snapshot, error) {
-	// Startup and shutdown briefly hold the lifetime lock without a session.
-	// Reobserve until ownership settles; corrupt metadata still fails at once.
+	// Startup and shutdown briefly hold the lifetime lock without a session,
+	// or with a session whose control port is closing. Reobserve until
+	// ownership settles; corrupt metadata still fails at once.
 	for {
 		s, view, err := observe(root)
-		if !errors.Is(err, os.ErrNotExist) {
+		if !errors.Is(err, os.ErrNotExist) && !transport(err) {
 			return s, view, err
 		}
 
@@ -183,6 +184,17 @@ func observeReady(ctx context.Context, root string) (session, snapshot, error) {
 		case <-time.After(pollTime):
 		}
 	}
+}
+
+// transport reports that the control request never got an HTTP response:
+// a refused dial, or a connection dropped mid-request (EOF). observe only
+// calls the control port while the lifetime lock is held, so this is the
+// shutdown gap: session.json was read just before the supervisor removed it
+// and closed its listener. HTTP status and JSON errors are not transport
+// errors and still fail at once.
+func transport(err error) bool {
+	var request *url.Error
+	return errors.As(err, &request)
 }
 
 func observe(root string) (session, snapshot, error) {
