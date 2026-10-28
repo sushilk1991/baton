@@ -2,7 +2,10 @@
 
 - `SPEC.md` is the goal and does not change. `TASKS.md` is the queue: one
   item per iteration, checked off only when its tests pass.
-- Verify with `make check`. Linux: `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check`.
+- Verify with `make check`. Linux, on a copy inside the container (git
+  inside a macOS bind mount intermittently fails with EACCES on loose
+  objects while tests build the CLI):
+  `docker run --rm -v "$PWD":/mnt:ro golang:1.27 sh -c 'cp -a /mnt /src && cd /src && make check'`.
 - Lint must report 0 issues: `docker run --rm -v "$PWD":/src -w /src golangci/golangci-lint:v2.15.0 golangci-lint run ./...`
   (`make check` skips lint when golangci-lint is not installed).
 - Tests never touch the real `$HOME`, `~/.claude`, `~/.codex`, `~/.agents`
