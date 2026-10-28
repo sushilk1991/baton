@@ -1,5 +1,46 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 3 (2026-10-28)
+
+Shipped locally: nested runs across lanes; only that queue item is checked.
+Descendants reuse any live ancestor reservation instead of acquiring another
+lane. Each nested heavy job retains its declared or learned memory gate,
+hysteresis, cancellation, and max_wait warning. Architecture and shim docs
+record the policy; history continues to mark descendants nested.
+
+Verified: native make check and the Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint v2.15.0
+reported 0 issues and exited 0. The saved red run predates production edits:
+mirrored x -> y and y -> x jobs timed out after 10 seconds; nested memory
+checks sampled pressure zero times. Three native targeted race runs now
+finish the mirrored CLI jobs in 1.37-1.77 seconds, record two nested histories,
+and release both lanes. An installed encode shim also finishes inside
+install while the unrelated encode slot remains occupied.
+
+Memory regressions cover warning recovery/hysteresis, insufficient budget
+headroom, timeout warnings, cancellation, and disabled gating without a
+ticket or lease. A direct native CLI run with x -> y and --quiet waits
+51.9 ms for an impossible declared memory budget, emits one max_wait warning,
+then exits 0. Public history preserves that budget, wait, and nested=true;
+public status shows no running/waiting jobs and all slots released. Checks
+isolate HOME, USERPROFILE, every XDG path, TMPDIR, and Go writes. Tests signal
+only their owned runners, which forward cancellation to their descendants.
+
+Evidence: .yoyo/re-review-cross-lanes-{red-native,targeted,native,linux,lint,
+cli,hook-linux}.log and .yoyo/re-review-cross-lanes-report.md. The first full
+Linux run timed out in the existing installed-hook test with empty stderr;
+its log is linux-first. That unchanged test passed 10 isolated race runs,
+then the unchanged full Linux gate passed. The first timeout's cause remains
+unknown; no timeout or gate was weakened.
+
+Pending: eight second-pass items, starting with job control under any parent.
+Windows was cross-built but its runtime was not exercised. Parallel nested
+children share ancestor capacity; memory checks do not enforce a RAM limit.
+SPEC.md, real agent settings, remotes, tags, and releases are unchanged.
+
+Next: read .yoyo/loop-state.md, then write the non-interactive-parent PTY
+regression before editing job control.
+
 ## Re-review fixes, second pass, iteration 2 (2026-10-28)
 
 Shipped locally: background tty jobs; that queue item is checked off.

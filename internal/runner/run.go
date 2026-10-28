@@ -111,13 +111,13 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	if err != nil {
 		return control.waitCode(), err
 	}
-	// Only live inherited reservations can cover this lane. A different lane
-	// still queues, while install -> encode -> install reuses the first slot.
+	// Any live ancestor reservation covers descendants across lanes, preventing
+	// circular waits such as x -> y alongside y -> x. Memory policy still runs.
 	lanes, err := inheritedLanes(ctx, store)
 	if err != nil {
 		return control.waitCode(), err
 	}
-	job.Nested = opts.lane != "" && lanes[opts.lane] != ""
+	job.Nested = len(lanes) != 0
 
 	if opts.memory == 0 {
 		opts.memory, err = store.predict(ctx, job.Signature)
@@ -192,7 +192,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 }
 
 func admit(ctx context.Context, opts options, store *store, job *jobRecord, out io.Writer) (*lane.Lease, error) {
-	if opts.lane == "" || job.Nested {
+	if opts.lane == "" {
 		return nil, nil
 	}
 	provider := opts.provider
@@ -200,6 +200,17 @@ func admit(ctx context.Context, opts options, store *store, job *jobRecord, out 
 		provider = pressure.System()
 	}
 	notices := &noticeProvider{out: out, lane: opts.lane, quiet: opts.quiet}
+	policy := opts.gate
+	policy.MaxWait, policy.OnWait = opts.maxWait, notices.wait
+	gate, err := admission.New(provider, policy)
+	if err != nil {
+		return nil, err
+	}
+	// Nested jobs reuse ancestor slots, but wait for their own memory budget.
+	// ancestor lease -> child memory gate (no ticket) -> nested command
+	if job.Nested {
+		return gate.Acquire(ctx, nil, opts.memory, out)
+	}
 	q, err := queue.New(store.root, opts.lane, opts.slots)
 	if err != nil {
 		return nil, err
@@ -213,12 +224,6 @@ func admit(ctx context.Context, opts options, store *store, job *jobRecord, out 
 	// even when multiple jobs share a parent PID or cross an aging boundary.
 	job.QueueSequence = ticket.Sequence()
 	if err := store.publish(*job); err != nil {
-		return nil, err
-	}
-	policy := opts.gate
-	policy.MaxWait, policy.OnWait = opts.maxWait, notices.wait
-	gate, err := admission.New(provider, policy)
-	if err != nil {
 		return nil, err
 	}
 	return gate.Acquire(ctx, ticket, opts.memory, out)

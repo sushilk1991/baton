@@ -33,7 +33,7 @@ func inheritedLanes(ctx context.Context, store *store) (map[string]string, error
 }
 
 func childEnvironment(lanes map[string]string, job jobRecord) ([]string, error) {
-	// runner -> child -> runner (same lane: reuse; new lane: acquire)
+	// runner -> child -> runner (any lane: reuse ancestor reservation)
 	// Retain every live ancestor lane for deeper calls, without changing the
 	// runner's own environment or claiming another slot for a nested job.
 	if job.Lane != "" && !job.Nested {

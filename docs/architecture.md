@@ -584,13 +584,17 @@ PowerShell. No command edits shell configuration.
 
 Every admitted run passes `_BATON_LANES`, a JSON map of lane names to owning
 job IDs, to its child. Shims use the same runner path as explicit calls.
-A same-lane descendant reuses the ancestor's reservation without another
-ticket or memory wait; history records `nested: true`. A different lane
-queues normally and passes both reservations to deeper descendants:
+A descendant in any lane reuses the ancestor's reservation without another
+ticket or slot; history records `nested: true`. Taking another lane could
+deadlock mirrored jobs such as x -> y and y -> x. Each heavy descendant
+still checks its own declared or learned memory budget, with the selected
+lane's hysteresis and `max_wait`. A nil admission ticket selects this
+memory-only path, retaining timeout warnings and cancellation:
 
 ```text
 run install -> run encode -> run install
-holds slot     holds slot     reuses first install slot
+holds slot     memory gate     memory gate
+    +---------- shared reservation --------+
 ```
 
 Inheritance requires a non-nested job record in the same state directory
@@ -599,9 +603,10 @@ grant no bypass. The runner passes its marker only after admission. Its
 first child can arrive while metadata still says queued; the monitor
 publishes running metadata after capturing the child's kernel birth token.
 The environment changes only for the child; unmatched commands add no
-reservation. These markers are cooperative scheduling metadata. Same-lane
-descendants share the parent's weight and memory budget; they do not expand
-it. Parallel children within that reservation need their tool's own limits.
+reservation. These markers are cooperative scheduling metadata. Descendants
+share the parent's slot weight; memory checks do not reserve additional RAM
+or expand that weight. Parallel children within that reservation need their
+tool's own limits.
 Descendants can still outlive a crashed wrapper, as described under command
 execution; inherited markers do not retain its slot after it exits.
 
@@ -1047,8 +1052,8 @@ releases the kernel locks. This is one temporary keeper per shell/lane,
 with no installed service. Windows reports that `hold` is unsupported.
 
 A reservation lasts until the calling shell exits, including commands after
-the original. Repeated holds and same-lane shims discover live reservations
-through verified shell ancestry; they do not queue behind their own shell.
+the original. Repeated holds reuse their lane; shims in any lane share the
+shell's reservation through verified ancestry.
 The holder's PID and the shell's PID/birth token are separate record fields:
 baton did not start that shell, so the reservation cannot establish reap
 provenance. Status and history label it `shell hold`. Its history describes
@@ -1123,8 +1128,7 @@ shell-command execution are separate checks from rendering the GIF.
 
 Manual runs and shims share lane inheritance. An explicit child
 `env BATON=off` remains available to cover a complete tree with only the
-outer reservation; it also bypasses scheduling in other lanes and suppresses
-descendant history.
+outer reservation; it also bypasses descendant memory checks and history.
 
 Community policies point to GitHub's private reporting entry point
 conditionally. Its availability is unverified; a dedicated private contact

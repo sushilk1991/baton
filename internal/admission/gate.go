@@ -83,8 +83,11 @@ func New(provider pressure.Provider, options Options) (*Gate, error) {
 }
 
 // Acquire retains queue position while waiting and closes tickets on errors.
+// A nil ticket checks only memory for a job sharing an ancestor's reservation.
 func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint64, warnings io.Writer) (lease *lane.Lease, err error) {
-	defer func() { err = errors.Join(err, ticket.Close()) }()
+	if ticket != nil {
+		defer func() { err = errors.Join(err, ticket.Close()) }()
+	}
 	if warnings == nil {
 		warnings = os.Stderr
 	}
@@ -116,7 +119,10 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			continue
 		}
 
-		lease, err := ticket.TryAcquire()
+		// A nested job has no ticket and must never take another lane's slots.
+		if ticket != nil {
+			lease, err = ticket.TryAcquire()
+		}
 		if errors.Is(err, queue.ErrBusy) {
 			if err := gate.wait(ctx, deadline, sample, sampleErr); err != nil {
 				return nil, err
@@ -129,10 +135,14 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 		if !expired {
 			return lease, nil
 		}
-		if err := gate.warn(warnings, sample, sampleErr); err != nil {
-			return nil, errors.Join(err, lease.Release())
+		err = gate.warn(warnings, sample, sampleErr)
+		if err == nil {
+			return lease, nil
 		}
-		return lease, nil
+		if lease == nil {
+			return nil, err
+		}
+		return nil, errors.Join(err, lease.Release())
 	}
 }
 

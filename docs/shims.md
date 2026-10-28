@@ -61,11 +61,12 @@ without a lane. Shims preserve argument boundaries and inherited stdio.
 ## Whole-command reservations
 
 Every admitted `baton run`, including a shim, marks the lanes held by its
-ancestors. A child run or shim in the same lane shares that reservation and
+ancestors. A child run or shim in any lane shares that reservation and
 records `nested: true` in history. For example, `baton run --lane install --
 npm ci` works with npm shims installed, including npm calls from its scripts.
 It grants no extra slots or memory; limit the tool's internal parallelism.
-Children in other lanes queue normally. Expired reservations grant no bypass.
+Nested heavy jobs still check memory, bounded by their lane's `max_wait`.
+Expired reservations grant no bypass.
 
 To cover every descendant with only the outer reservation, bypass the child
 tree explicitly:

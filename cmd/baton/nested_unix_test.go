@@ -17,7 +17,10 @@ import (
 	"github.com/sushilk1991/baton/internal/queue"
 )
 
-const nestedDeadline = 4 * time.Second
+const (
+	nestedDeadline = 4 * time.Second
+	crossDeadline  = 10 * time.Second
+)
 
 // Installed recipes must finish even when their tools invoke another shim.
 func TestNestedInstalledRecipes(t *testing.T) {
@@ -87,15 +90,15 @@ func TestNestedLaneChain(t *testing.T) {
 		"run", "--lane", "encode", "--", binary,
 		"run", "--lane", "install", "--", "/bin/sh", "-c", "exit 3")
 	jobs := nestedHistory(t)
-	if len(jobs) != 3 || !jobs[0].Nested || jobs[0].Lane != "install" || jobs[1].Nested || jobs[1].Lane != "encode" || jobs[2].Nested {
-		t.Fatalf("want inherited install and separate encode reservation: %+v", jobs)
+	if len(jobs) != 3 || !jobs[0].Nested || jobs[0].Lane != "install" || !jobs[1].Nested || jobs[1].Lane != "encode" || jobs[2].Nested {
+		t.Fatalf("want two descendants sharing the install reservation: %+v", jobs)
 	}
 	for _, job := range jobs {
 		if job.ExitCode != 3 {
 			t.Fatalf("lost child exit: %+v", job)
 		}
 	}
-	t.Log("install -> encode -> install completed; only last install nested; all exits 3")
+	t.Log("install -> encode -> install completed; both descendants nested; all exits 3")
 	// All reservations must be available again after the failing job ends.
 	for _, lane := range []string{"install", "encode"} {
 		view, err := queue.Observe(context.Background(), filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton"), lane, 1)
@@ -105,8 +108,8 @@ func TestNestedLaneChain(t *testing.T) {
 	}
 }
 
-// A shim for a different lane must still respect an occupied reservation.
-func TestNestedOtherLaneQueues(t *testing.T) {
+// A descendant must not wait on a slot that another ancestor could need.
+func TestNestedOtherLaneShares(t *testing.T) {
 	isolateShim(t)
 	binary := buildShimCLI(t)
 	writeNestedConfig(t)
@@ -146,33 +149,96 @@ func TestNestedOtherLaneQueues(t *testing.T) {
 			_ = command.Wait()
 		}
 	})
-	var waiting bool
-	deadline := time.Now().Add(nestedDeadline / 2)
-	for time.Now().Before(deadline) {
-		view, err := queue.Observe(ctx, root, "encode", 1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(view.Waiting) == 1 {
-			waiting = true
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !waiting {
-		t.Fatal("encode shim bypassed its occupied lane inside install")
-	}
-	if err := lease.Release(); err != nil {
-		t.Fatal(err)
-	}
 	if err := command.Wait(); err != nil || out.String() != "finished" {
 		t.Fatalf("different-lane child: %v, stdout %q, stderr %q", err, &out, &diag)
 	}
 	jobs := nestedHistory(t)
-	if len(jobs) != 2 || jobs[0].Nested || jobs[1].Nested {
-		t.Fatalf("different lane must own its reservation: %+v", jobs)
+	if len(jobs) != 2 || !jobs[0].Nested || jobs[1].Nested {
+		t.Fatalf("different-lane shim must share its ancestor's reservation: %+v", jobs)
 	}
-	t.Log("encode shim waited inside install, then completed after encode release")
+	view, err := queue.Observe(ctx, root, "encode", 1)
+	if err != nil || view.Used != 1 || len(view.Waiting) != 0 {
+		t.Fatalf("nested shim changed the unrelated reservation: %+v, %v", view, err)
+	}
+	t.Log("encode shim completed inside install while encode remained occupied")
+}
+
+// Mirrored one-slot jobs must finish without a circular reservation wait.
+func TestNestedCrossLanes(t *testing.T) {
+	isolateShim(t)
+	binary := buildShimCLI(t)
+	writeShimFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton", "config.toml"),
+		"[lanes.x]\nslots = 1\nmemory_gate = false\n[lanes.y]\nslots = 1\nmemory_gate = false\n", 0600)
+	ctx, cancel := context.WithTimeout(context.Background(), crossDeadline)
+	defer cancel()
+	barrier := filepath.Join(t.TempDir(), "release")
+	var commands []*exec.Cmd
+	var outputs, diagnostics [2]bytes.Buffer
+	started := time.Now()
+	for i, pair := range [][2]string{{"x", "y"}, {"y", "x"}} {
+		// Each admitted shell waits for its peer before attempting the nested
+		// lane: x -> y and y -> x. TERM targets only runners this test owns.
+		script := `while [ ! -f "$4" ]; do sleep 0.01; done; sleep 1; "$1" run --lane "$2" -- echo "$3"`
+		command := exec.CommandContext(ctx, binary, "run", "--lane", pair[0], "--", "/bin/sh", "-c", script,
+			"nested", binary, pair[1], string(rune('A'+i)), barrier)
+		command.Cancel = func() error { return command.Process.Signal(syscall.SIGTERM) }
+		command.WaitDelay = time.Second
+		command.Stdout, command.Stderr = &outputs[i], &diagnostics[i]
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		commands = append(commands, command)
+		t.Cleanup(func() {
+			if command.ProcessState == nil {
+				_ = command.Process.Signal(syscall.SIGTERM)
+				_ = command.Wait()
+			}
+		})
+	}
+	// Observing both occupied lanes makes the cycle deterministic even on a
+	// slow host; the sleep then matches the reported cross-lane reproduction.
+	root := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton")
+	for _, name := range []string{"x", "y"} {
+		for {
+			view, err := queue.Observe(ctx, root, name, 1)
+			if err != nil || ctx.Err() != nil {
+				t.Fatalf("waiting for %s reservation: %v, %v", name, err, ctx.Err())
+			}
+			if view.Used == 1 {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	writeShimFile(t, barrier, "", 0600)
+	for i, command := range commands {
+		if err := command.Wait(); err != nil || ctx.Err() != nil || outputs[i].String() != string(rune('A'+i))+"\n" {
+			t.Errorf("cross-lane job %d: error %v, context %v, stdout %q, stderr %q", i, err, ctx.Err(), &outputs[i], &diagnostics[i])
+		}
+	}
+	if t.Failed() {
+		return
+	}
+	jobs := nestedHistory(t)
+	var descendants int
+	for _, job := range jobs {
+		if job.Nested {
+			descendants++
+		}
+		if job.ExitCode != 0 {
+			t.Fatalf("cross-lane exit: %+v", job)
+		}
+	}
+	if len(jobs) != 4 || descendants != 2 {
+		t.Fatalf("want two reservations and two nested jobs: %+v", jobs)
+	}
+	for _, name := range []string{"x", "y"} {
+		view, err := queue.Observe(ctx, root, name, 1)
+		if err != nil || view.Used != 0 || len(view.Waiting) != 0 {
+			t.Fatalf("stranded %s: %+v, %v", name, view, err)
+		}
+	}
+	t.Logf("x -> y and y -> x finished in %s; 2 nested histories, both lanes released", time.Since(started))
 }
 
 func writeNestedConfig(t *testing.T) {
