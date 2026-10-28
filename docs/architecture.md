@@ -1026,6 +1026,17 @@ symlink targets. Unchanged files restore exact original bytes; edited JSON is
 reformatted with integer precision retained. Originals may include sensitive
 settings, so the manifest is private (0600). No secrets are printed.
 
+With both instruction markers absent, or the recorded hook entry removed
+leaving the original array, uninstall leaves current bytes alone and removes
+the rest.
+Missing `hooks` or `PreToolUse` keys also establish removal. Re-init rebuilds
+the missing edit against current contents, including leftover blank lines,
+and retains the recorded hook opt-in and mode without another flag. It saves
+the rebased snapshots before replay. JSON settings take precedence over
+instruction markers inside string values. Partial markers, changed or duplicated
+owned entries, and ambiguous remaining hook arrays still fail with a preserved
+path; re-init does not guess whether a different entry replaced baton's hook.
+
 Existing instruction symlinks resolve within home/config roots and retain
 their links. Skill-parent aliases are resolved before checking for self-links.
 External targets fail. This is cooperative filesystem management, not an

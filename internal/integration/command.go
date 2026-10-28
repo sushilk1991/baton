@@ -147,6 +147,13 @@ func (i installer) manage(action operation, mode application, claude hookPolicy,
 	if err := i.validate(journal); err != nil {
 		return err
 	}
+	// Persist rebased snapshots before replaying a hand-removed edit, so a
+	// crash cannot leave a write whose current surroundings were unrecorded.
+	if len(journal.Entries) > 0 {
+		if err := i.save(journal); err != nil {
+			return err
+		}
+	}
 	// Recover interrupted publication before extending an existing installation.
 	if err := i.apply(journal); err != nil {
 		return err

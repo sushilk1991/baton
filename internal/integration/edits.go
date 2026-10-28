@@ -31,6 +31,19 @@ func (i installer) reconcile(j *journal) error {
 		if err != nil {
 			return err
 		}
+		replayed, err := i.replayRemoved(e, data)
+		if err != nil {
+			return fmt.Errorf("%s: modified integration; preserved: %w", e.Path, err)
+		}
+		if replayed != nil {
+			// Gone content is already uninstalled. Re-init can replay the new
+			// snapshots without resurrecting user bytes from the old manifest.
+			e.Before, e.After = data, replayed
+			e.Existed = true
+			e.BeforeMode, e.Mode = mode, mode
+			j.Entries[n] = e
+			continue
+		}
 		restored, err := i.restoreOwned(e, data)
 		if err != nil {
 			return fmt.Errorf("%s: modified integration; preserved: %w", e.Path, err)

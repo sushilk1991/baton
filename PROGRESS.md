@@ -1,5 +1,39 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 5 (2026-10-28)
+
+Shipped locally: hand-removed integration; only that queue item is checked.
+Uninstall accepts missing instruction blocks, hook entries, or hook keys and
+removes the remaining integration. Re-init recreates them from current bytes,
+retaining blank lines, settings, modes, and the recorded hook policy without
+another opt-in flag. Rebased snapshots are saved before replay. JSON settings
+take precedence over marker text inside strings. Architecture records the
+ownership rules and the conservative treatment of ambiguous hook edits.
+
+Verified: native make check and the Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint v2.15.0
+reported 0 issues and exited 0. Ten compiled-CLI deletion cases cover preview,
+uninstall, re-init, repeated re-init, user settings/hooks, blank lines, modes,
+and removal of the remaining skill and manifest. Edited/duplicate content
+still fails safely. Unit checks cover partial markers and numeric precision.
+HOME, USERPROFILE, every XDG path, TMPDIR, and Go writes were private.
+
+Evidence: .yoyo/re-review-removed-init-red-native.log records all ten original
+failures before production edits. The corrected marker-string refutation in
+-refute-marker.log caught a flaw in the first implementation; valid JSON now
+selects hook handling before marker handling. The earlier marker fixtures
+left encoded delimiters and passed; they are retained as -marker-first.log
+and -marker-second.log. Final gates are -native.log, -linux.log, and -lint.log;
+the report and runner share the re-review-removed-init prefix.
+
+Pending: six second-pass items, starting with stable hook path. Ambiguous
+remaining hook arrays still require manual resolution. Live Claude loading,
+replay crash fault injection, and Windows runtime were not exercised. No
+push, tag, publication, remote change, or real agent settings write occurred.
+SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md, then write the stable hook path Linux red.
+
 ## Re-review fixes, second pass, iteration 4 (2026-10-28)
 
 Shipped locally: job control under any parent; only that queue item is checked.
