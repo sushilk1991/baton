@@ -754,6 +754,11 @@ waits up to two seconds after KILL; surviving identities fail the command.
 Windows reap fails explicitly without signalling; Windows core commands
 still build. Windows reap runtime support is deferred.
 
+The `REASON` column names each candidate's eligibility rule: `started by
+baton, parent dead` or `adopted orphan of the system init`. It uses the
+scan's validated owner records and matching birth token; a stale token
+cannot label an adopted process as baton-started.
+
 Output lists PID, parent, age, and executable path, omitting arguments that
 could contain credentials. Control characters are replaced. Discovery has
 a ten-second deadline. Discovery, record, signal, and output errors return

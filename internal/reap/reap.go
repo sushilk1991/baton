@@ -25,6 +25,9 @@ const (
 	killWait     = 2 * time.Second
 	scanLimit    = 10 * time.Second
 	usage        = "usage: baton reap [--older-than 2h] [--yes]"
+
+	recordedReason = "started by baton, parent dead"
+	adoptedReason  = "adopted orphan of the system init"
 )
 
 type options struct {
@@ -127,7 +130,7 @@ func runReap(out io.Writer, yes, override bool, age time.Duration) error {
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].PID < candidates[j].PID })
 	// Print the entire selection before any signal. A closed output aborts
 	// action; argv values are omitted because they can carry credentials.
-	if err := printCandidates(out, candidates, now); err != nil {
+	if err := printCandidates(out, candidates, now, origins); err != nil {
 		return err
 	}
 	if !yes || len(candidates) == 0 {
@@ -136,11 +139,17 @@ func runReap(out io.Writer, yes, override bool, age time.Duration) error {
 	return terminate(context.Background(), systemDriver{}, candidates, opts, origins, out)
 }
 
-func printCandidates(out io.Writer, rows []process.Info, now time.Time) error {
+func printCandidates(out io.Writer, rows []process.Info, now time.Time, origins map[int]string) error {
 	var buffer bytes.Buffer
-	fmt.Fprintln(&buffer, "PID\tPPID\tAGE\tCOMMAND")
+	fmt.Fprintln(&buffer, "PID\tPPID\tAGE\tCOMMAND\tREASON")
 	for _, row := range rows {
-		fmt.Fprintf(&buffer, "%d\t%d\t%s\t%s\n", row.PID, row.Parent, now.Sub(row.Started).Truncate(time.Second), clean(row.Args[0]))
+		// Match the scan's birth token, so stale records still report adoption.
+		reason := adoptedReason
+		if origins[row.PID] == row.Start {
+			reason = recordedReason
+		}
+
+		fmt.Fprintf(&buffer, "%d\t%d\t%s\t%s\t%s\n", row.PID, row.Parent, now.Sub(row.Started).Truncate(time.Second), clean(row.Args[0]), reason)
 	}
 	fmt.Fprintf(&buffer, "%d reap candidate(s); use --yes to terminate\n", len(rows))
 	_, err := out.Write(buffer.Bytes())

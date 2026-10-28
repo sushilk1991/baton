@@ -1,5 +1,31 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 10 (2026-10-28)
+
+Shipped locally: reap listing reasons; only that queue item is checked.
+Each candidate row names its eligibility rule before any signals. Reasons
+use the scan's validated owner records and matching birth token. Selection
+and signal guards are unchanged. Architecture records the output design.
+
+Verified: native make check and Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Compiled-CLI tests check reasons in
+dry-run and --yes output. macOS covers both rules, including an adopted
+headless fake with a stale job record. Both platforms cover recorded dead
+owners whose child has a non-init current parent. Protected fakes survive.
+All checks isolate HOME, USERPROFILE, XDG paths, TMPDIR, and Go writes.
+
+Evidence: .yoyo/re-review-reap-reasons-red-native.log records both listing
+tests failing before production edits. Green logs are -targeted, -native,
+-linux, and -lint under the same prefix. The runner and report record
+commands, output, and limits.
+
+Pending: the second-pass final gate. Windows runtime was not exercised.
+No push, tag, publication, remote change, or real agent settings write
+occurred. SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md and complete only the second-pass final gate.
+
 ## Re-review fixes, second pass, iteration 9 (2026-10-28)
 
 Shipped locally: settings bytes; only that queue item is checked. Hook

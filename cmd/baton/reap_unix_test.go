@@ -99,6 +99,11 @@ func TestReapCLI(t *testing.T) {
 	writeReapOrigin(t, remote)
 	if runtime.GOOS == "linux" {
 		writeReapOrigin(t, headless)
+	} else {
+		// A stale birth token must not mislabel host-init adoption as ownership.
+		stale := headless
+		stale.Start = "stale-birth"
+		writeReapOrigin(t, stale)
 	}
 
 	// The default two-hour threshold must exclude newly orphaned jobs.
@@ -107,6 +112,13 @@ func TestReapCLI(t *testing.T) {
 	}
 	out := shimCLI(t, baton, 0, "reap", "--older-than", "0s")
 	assertReapPIDs(t, out, []process.Info{headless, stubborn}, []process.Info{remote, interactive, active, profile, unrecorded})
+	// Each selected row must explain its own proof before --yes is used.
+	headlessReason := "adopted orphan of the system init"
+	if runtime.GOOS == "linux" {
+		headlessReason = "started by baton, parent dead"
+	}
+	assertReapReason(t, out, headless, headlessReason)
+	assertReapReason(t, out, stubborn, "started by baton, parent dead")
 	for _, row := range all {
 		assertReapAlive(t, row)
 	}
@@ -119,6 +131,8 @@ func TestReapCLI(t *testing.T) {
 	}
 	t.Logf("dry-run selected only two owned orphan fakes:\n%s", out)
 	out = shimCLI(t, baton, 0, "reap", "--older-than", "0s", "--yes")
+	assertReapReason(t, out, headless, headlessReason)
+	assertReapReason(t, out, stubborn, "started by baton, parent dead")
 	for _, row := range []process.Info{headless, stubborn} {
 		current, err := process.Read(context.Background(), row.PID)
 		if err == nil && process.Same(row, current) {
@@ -175,7 +189,9 @@ func TestReapRecordedOwner(t *testing.T) {
 	writeRecord(row.Start, os.Getpid())
 	assertReapPIDs(t, shimCLI(t, baton, 0, "reap", "--older-than", "0s"), nil, []process.Info{row})
 	writeRecord(row.Start, owner.Process.Pid)
-	assertReapPIDs(t, shimCLI(t, baton, 0, "reap", "--older-than", "0s"), []process.Info{row}, nil)
+	out := shimCLI(t, baton, 0, "reap", "--older-than", "0s")
+	assertReapPIDs(t, out, []process.Info{row}, nil)
+	assertReapReason(t, out, row, "started by baton, parent dead")
 	shimCLI(t, baton, 0, "reap", "--older-than", "0s", "--yes")
 	current, err := process.Read(context.Background(), row.PID)
 	if err == nil && process.Same(row, current) {
@@ -293,6 +309,24 @@ func assertReapPIDs(t *testing.T, output string, included, excluded []process.In
 			t.Fatalf("unsafe selection %d: %s", row.PID, output)
 		}
 	}
+}
+
+// Check the candidate's row, so a reason elsewhere cannot satisfy the test.
+func assertReapReason(t *testing.T, output string, row process.Info, reason string) {
+	t.Helper()
+	if !strings.Contains(output, "PID\tPPID\tAGE\tCOMMAND\tREASON\n") {
+		t.Errorf("missing reason column: %s", output)
+	}
+	for _, line := range strings.Split(output, "\n") {
+		if !strings.HasPrefix(line, strconv.Itoa(row.PID)+"\t") {
+			continue
+		}
+		if !strings.HasSuffix(line, "\t"+reason) {
+			t.Errorf("PID %d: want reason %q, got %q", row.PID, reason, line)
+		}
+		return
+	}
+	t.Fatalf("missing candidate %d: %s", row.PID, output)
 }
 
 func assertReapAlive(t *testing.T, row process.Info) {
