@@ -70,20 +70,25 @@ For a matching heavy command it returns `updatedInput.command` containing
 an explicit-lane wrapper:
 
 ```sh
-baton run --lane encode -- bash -c 'original command'
+baton run --lane encode -- "${SHELL:-/bin/sh}" -c 'original command'
 ```
 
 It preserves other tool-input fields. It never returns an `allow` decision,
-so normal Claude permissions still apply. Commands already containing
-`baton run` and `BATON=off` bypass the hook. The runner's inherited lane
-reservation keeps same-lane descendant shims from queueing again and records
+so normal Claude permissions still apply. Segments already executing
+`baton run` are skipped; `BATON=off` bypasses the hook. The runner's inherited
+lane reservation keeps same-lane descendant shims from queueing again and records
 them as nested in history. Keep the executable at the installed path.
 Uninstall before changing its location or switching hook modes, then install
 again.
 
-The classifier tokenizes quotes for matching; it does not interpret shell
-expansions, functions, or scripts. Shell commands hidden behind those forms
-can escape classification. Use explicit `baton run` or shims when needed.
+The classifier checks executable names in each shell segment, after variable
+assignments and `sudo`, `time`, `nice`, or `env` wrappers. It recognizes
+install/build operations, npm-style tool launchers, and Python `-m` modules.
+Arguments such as `grep ffmpeg` never select a lane. The first matching
+segment selects the lane for the whole command, run under `$SHELL` or
+`/bin/sh` when unset. Quoted separators, comments, and redirection targets
+are ignored. Shell expansions, functions, scripts, here-docs, and `env -S`
+are opaque. Use explicit `baton run` or shims for those forms.
 This hook coordinates work; it does not enforce a security boundary.
 For clients without input-rewrite support, install with
 `baton init --yes --claude-hook-block` instead. That hook exits 2 and prints

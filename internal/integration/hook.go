@@ -1,19 +1,20 @@
 package integration
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/sushilk1991/baton/internal/config"
 )
 
-const hookLimit = 1 << 20
+const (
+	hookLimit = 1 << 20
+	hookShell = "/bin/sh"
+)
 
 func hook(in io.Reader, out, diagnostics io.Writer, policy hookPolicy) int {
 	if os.Getenv("BATON") == "off" {
@@ -59,18 +60,13 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 	if err := json.Unmarshal(request.Input["command"], &command); err != nil {
 		return err
 	}
-	words := shellWords(command)
-	if len(words) == 0 || queuedCommand(words) {
-		return nil
-	}
 	settings, err := config.Load()
 	if err != nil {
 		return err
 	}
-	// Shell text is never executed here. Explicit lane selection lets the
-	// runner preserve compound commands as one shell job, e.g. cd && npm ci.
-	// Descendant shims inherit the admitted reservation instead of queuing twice.
-	lane := settings.AutoLane(words)
+	// Only executable heads reach matchers; arguments such as grep ffmpeg do not.
+	// segments -> unwrap -> executable/verb -> first lane -> whole shell job
+	lane := hookLane(command, settings)
 	if lane == "" {
 		return nil
 	}
@@ -78,7 +74,12 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 	if err != nil {
 		return err
 	}
-	wrapped := shellQuote(binary) + " run --lane " + shellQuote(lane) + " -- bash -c " + shellQuote(command)
+	// Preserve the user's interpreter, including paths containing shell quotes.
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = hookShell
+	}
+	wrapped := shellQuote(binary) + " run --lane " + shellQuote(lane) + " -- " + shellQuote(shell) + " -c " + shellQuote(command)
 	if policy == withClaudeBlock {
 		return blockedCommand(wrapped)
 	}
@@ -93,60 +94,23 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 
 func queuedCommand(words []string) bool {
 	binary, _ := os.Executable()
-	// Skip commands that already include a reservation, including env prefixes
-	// and cd && baton run. Nesting could wait on the caller's single slot.
-	for index := 0; index+1 < len(words); index++ {
-		if words[index+1] != "run" {
-			continue
-		}
-		base := filepath.Base(words[index])
-		if words[index] == binary || base == "baton" || base == "baton.exe" {
-			return true
-		}
+	if len(words) < 2 || words[1] != "run" {
+		return false
 	}
-	return false
+	base := filepath.Base(words[0])
+	return words[0] == binary || base == "baton" || base == "baton.exe"
 }
 
-func shellWords(command string) []string {
-	// Tokenize quotes only for matcher input and the outer-wrapper check.
-	// No expansion or shell grammar interpretation occurs; baton is advisory.
-	var word bytes.Buffer
-	words := []string{}
-	var quote rune
-	escaped := false
-	for _, char := range command {
-		if escaped {
-			word.WriteRune(char)
-			escaped = false
+func hookLane(command string, settings *config.Config) string {
+	// An explicit reservation protects its segment, not later bare commands.
+	for _, segment := range shellSegments(command) {
+		words := unwrapCommand(segment)
+		if queuedCommand(words) {
 			continue
 		}
-		if char == '\\' && quote != '\'' {
-			escaped = true
-			continue
+		if lane := settings.AutoLane(commandHead(words)); lane != "" {
+			return lane
 		}
-		if quote != 0 {
-			if char == quote {
-				quote = 0
-			} else {
-				word.WriteRune(char)
-			}
-			continue
-		}
-		if char == '\'' || char == '"' {
-			quote = char
-			continue
-		}
-		if strings.ContainsRune(" \t\r\n", char) {
-			if word.Len() > 0 {
-				words = append(words, word.String())
-				word.Reset()
-			}
-			continue
-		}
-		word.WriteRune(char)
 	}
-	if word.Len() > 0 {
-		words = append(words, word.String())
-	}
-	return words
+	return ""
 }

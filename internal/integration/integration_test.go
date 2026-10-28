@@ -147,6 +147,7 @@ func TestHook(t *testing.T) {
 	} {
 		t.Run(tc.command, func(t *testing.T) {
 			isolate(t)
+			t.Setenv("SHELL", "/bin/sh")
 			input, _ := json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": tc.command, "timeout": 123}})
 			var out, diag bytes.Buffer
 			if code := Run([]string{"_hook"}, bytes.NewReader(input), &out, &diag); code != 0 {
@@ -169,7 +170,7 @@ func TestHook(t *testing.T) {
 				t.Fatal(err)
 			}
 			updated, _ := response.Output.Input["command"].(string)
-			if response.Output.Event != "PreToolUse" || response.Output.Decision == "allow" || !strings.Contains(updated, "run --lane") || !strings.Contains(updated, " bash -c ") || response.Output.Input["timeout"] != float64(123) {
+			if response.Output.Event != "PreToolUse" || response.Output.Decision == "allow" || !strings.Contains(updated, "run --lane") || !strings.Contains(updated, " '/bin/sh' -c ") || response.Output.Input["timeout"] != float64(123) {
 				t.Fatalf("wrapper: %s", &out)
 			}
 			input, _ = json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": response.Output.Input})

@@ -1,5 +1,42 @@
 # Progress
 
+## Review fixes, iteration 5 (2026-10-28)
+
+Shipped locally: Hook classification only; the fifth review item is checked
+off. The hook matches executable basenames and known dispatch operations in
+each literal shell segment after assignments and sudo/time/nice/env wrappers.
+Argument keywords, comments, redirection targets, and tool directory names
+do not select lanes. The first matching segment selects the whole command's
+lane. Existing baton reservations skip only their own segment. Rewritten
+commands use the quoted `$SHELL` path, falling back to `/bin/sh` when empty.
+
+Verified: native `make check`, `golang:1.27` Docker `make check`, and
+`golangci/golangci-lint:v2.15.0` exited 0; lint reported `0 issues.` Both
+full gates passed vet, race tests, and all five cross-builds. Public-hook
+tests cover the required unqueued/queued commands, wrappers and their option
+values, quoted/escaped separators, pipelines, and the blocking fallback.
+Compiled-CLI tests execute the selected shell with a path containing spaces
+and a quote, execute the `/bin/sh` fallback, and exercise the installed hook
+with nested shims and quoted argv. Every check used private HOME, USERPROFILE,
+all inherited XDG keys, and Go paths. Only owned child processes were signaled.
+
+Red evidence: `.yoyo/review-hook-red-native.log` records exit 1 before
+production edits, including all four required argument false positives and
+both shell-selection failures. Refutations caught `&>` redirection and a
+heavy keyword in an executable directory; their red runs are
+`review-hook-{refute,basename}-red.log`. An intermediate targeted run retained
+the old Bash assertion and failed; the assertion now requires the selected
+shell. Final green logs: `review-hook-{native,linux,lint,targeted}.log`.
+Evidence and limits: `.yoyo/review-hook-report.md`.
+
+Pending: Job control, Agent label, and Final gate. Shell expansions, functions,
+scripts, here-docs, and `env -S` remain opaque; use explicit runs or shims.
+Live Claude loading and Windows runtime were not exercised. Decisions are
+recorded in `docs/architecture.md`; SPEC.md is unchanged. No push, tag,
+publication, remote change, or real agent configuration write occurred.
+
+Next: read `.yoyo/loop-state.md`, then add the Job control pty red test.
+
 ## Review fixes, iteration 4 (2026-10-28)
 
 Shipped locally: Uninstall after user edits only; the fourth review item is

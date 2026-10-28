@@ -15,9 +15,73 @@ import (
 	"time"
 )
 
+func TestHookShellFlow(t *testing.T) {
+	isolateHome(t)
+	binary := buildShimCLI(t)
+	tools := t.TempDir()
+	configRoot := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton")
+	if err := os.MkdirAll(configRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configRoot, "config.toml"), []byte("[lanes.encode]\nslots = 1\nmemory_gate = false\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tools, "ffmpeg"), []byte("#!/bin/sh\nprintf '%s' \"$1\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tools+string(os.PathListSeparator)+os.Getenv("PATH"))
+	selected := filepath.Join(tools, "user's shell")
+	// A visible marker proves that the returned command used SHELL at runtime.
+	if err := os.WriteFile(selected, []byte("#!/bin/sh\nprintf 'selected-shell\\n'\nexec /bin/sh \"$@\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, shell, want string
+	}{
+		{"selected", selected, "selected-shell\nquoted argument"},
+		{"fallback", "", "quoted argument"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("SHELL", tc.shell)
+			input := `{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ffmpeg 'quoted argument'"}}`
+			hook := exec.Command(binary, "init", "_hook")
+			hook.Stdin = strings.NewReader(input)
+			result, err := hook.Output()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response struct {
+				Output struct {
+					Input struct {
+						Command string `json:"command"`
+					} `json:"updatedInput"`
+				} `json:"hookSpecificOutput"`
+			}
+			if err := json.Unmarshal(result, &response); err != nil {
+				t.Fatal(err)
+			}
+			if tc.shell == "" && !strings.Contains(response.Output.Input.Command, "-- '/bin/sh' -c ") {
+				t.Fatalf("missing /bin/sh fallback: %s", result)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			command := exec.CommandContext(ctx, "/bin/sh", "-c", response.Output.Input.Command)
+			command.Cancel = func() error { return command.Process.Signal(syscall.SIGTERM) }
+			command.WaitDelay = time.Second
+			var out, diag bytes.Buffer
+			command.Stdout, command.Stderr = &out, &diag
+			if err := command.Run(); err != nil || out.String() != tc.want {
+				t.Fatalf("shell output=%q want=%q: %v %s", &out, tc.want, err, &diag)
+			}
+			t.Logf("executed rewritten command: %q", out.String())
+		})
+	}
+}
+
 // Run the installed hook command and its returned shell text using a real CLI.
 func TestInstalledHookFlow(t *testing.T) {
 	isolateHome(t)
+	t.Setenv("SHELL", "/bin/sh")
 	binary := buildShimCLI(t)
 	home := os.Getenv("HOME")
 	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0700); err != nil {
@@ -63,7 +127,7 @@ func TestInstalledHookFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	hook := exec.Command("sh", "-c", settings.Hooks.Pre[0].Hooks[0].Command)
-	input, _ := json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": "[[ -n \"$PATH\" ]] && ffmpeg 'argv with spaces and a quote: '\"'\"''"}})
+	input, _ := json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": "[ -n \"$PATH\" ] && ffmpeg 'argv with spaces and a quote: '\"'\"''"}})
 	hook.Stdin = bytes.NewReader(input)
 	result, err := hook.Output()
 	if err != nil {

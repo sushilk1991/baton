@@ -952,15 +952,31 @@ The shared `~/.agents/AGENTS.md` snippet is available to other integrations.
 
 The Claude hook returns only `updatedInput`, preserving other tool fields
 and normal permission checks. An explicit lane schedules the complete shell
-command as one Bash job. The blocking hook alternative
-(`--claude-hook-block`) exits 2 with the exact queued command for clients
-without input-rewrite support. No shell command executes during
-classification. Quote tokenization avoids wrapping commands that already contain baton run. The
-runner passes its lane reservation to the child shell, preventing a same-lane
-shim from waiting on the slot its parent holds. Shell expansion and script
-contents remain opaque. This is advisory routing; explicit commands and shims cover cases outside the classifier. Hook paths
+command under the user's `$SHELL`, falling back to `/bin/sh` when empty.
+The interpreter path and original command are quoted separately. The
+blocking hook alternative (`--claude-hook-block`) exits 2 with the same
+queued command for clients without input-rewrite support.
+
+Hook classification reads literal command segments separated by unquoted
+shell operators. It skips assignments, `sudo`, `time`, `nice`, and `env`,
+including their recognized option values. Only executable basenames and
+known dispatch operations reach config matchers: install/build verbs,
+npm-style executable launchers, and Python `-m` module names. Payload
+arguments and executable directory names never select a lane. For example,
+`grep ffmpeg` stays unqueued; `npx remotion render` selects render. Each
+segment uses configured matcher order; the first matching segment selects
+the whole command's lane. This keeps compound commands intact without
+reserving several lanes. A segment already executing `baton run` is skipped
+without hiding later bare heavy commands.
+
+No shell command executes during classification. Quotes, escapes, comments,
+and redirection targets are recognized; shell expansions, functions, script
+contents, here-documents, and `env -S` remain opaque. Use explicit commands
+and shims for those forms and custom commands whose operation is not
+recognized. The runner passes its lane reservation to the child shell,
+preventing a same-lane shim from waiting on its parent's slot. Hook paths
 bind to the installed binary location. No live agent session was modified
-or used to establish hook-loading proof.
+or used to prove hook loading.
 
 The MCP stdio server uses a small stdlib JSON-RPC implementation. Its current
 protocol is 2025-11-25, with the compatible basic tool exchange accepted for
