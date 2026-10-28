@@ -464,12 +464,26 @@ HOME/XDG paths and release only their own processes.
 ## Shims
 
 `internal/shim` installs wrappers in `XDG_DATA_HOME/baton/shims`. Unix
-wrappers use `/bin/sh` and `exec` the absolute baton binary; Windows gets
+wrappers use `/bin/sh` and `exec` the absolute invoked baton path; Windows gets
 `.cmd` wrappers. The private `shim exec` entry point resolves the real tool
 on each call, then passes its absolute path and unchanged argv to
 `runner.Run --lane auto`. Upgrading a tool does not require reinstalling
-its shim. Moving baton itself requires uninstalling from its original path
-and reinstalling at the new path.
+its shim. Installation resolves argv[0] through PATH when needed, makes it
+absolute, and preserves symlinks. Package manager links can therefore point
+to a new version without reinstalling shims.
+
+Unix wrappers check that baton is a regular executable before invoking it.
+If unavailable, they remove every PATH entry whose command is the current
+wrapper, comparing file identity to cover symlink and hardlink aliases, then
+exec the command through the remaining PATH. Copied wrappers remove their
+own entries in turn; a PATH containing only wrappers terminates with exit
+127. Empty PATH entries retain their current-directory meaning. With no
+entries left, fallback exits before command lookup. It uses shell builtins,
+preserves argv and exit status, and works with `BATON=off`.
+It skips configuration, scheduling, and history. It does not rerun a command
+after a working baton returns nonzero, or promise recovery if baton vanishes
+between the executable check and exec. Windows batch wrappers remain best
+effort and do not provide this Unix fallback.
 
 ```text
 PATH -> shim -> baton shim exec -> resolve PATH without shim directories

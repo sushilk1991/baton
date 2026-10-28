@@ -31,11 +31,18 @@ ffmpeg args -> shim -> PATH search excluding shim directory -> real ffmpeg
                    fast/off -> direct child
 ```
 
-Shims live under `$XDG_DATA_HOME/baton/shims` and bind to the absolute baton
-binary used to install them. Keep that binary in place. Resolution searches
+Shims live under `$XDG_DATA_HOME/baton/shims` and bind to the absolute path
+used to invoke baton during installation. Symlinks stay unresolved, so a
+Homebrew/Linuxbrew upgrade can replace their targets. Resolution searches
 the current PATH on every invocation, excluding the shim directory and
 aliases that resolve back into it. A recursion chain rejects repeated
 identical invocations with exit 126.
+
+On macOS/Linux, a missing or non-executable baton makes the wrapper remove
+its own PATH entries, including aliases, and exec the real command directly.
+`BATON=off` also works when baton is unavailable. Arguments, stdio, and exit
+status pass through; fallback work has no scheduling or history. Uninstall
+and install shims again if baton moves permanently to a different path.
 
 `BATON=off ffmpeg ...` goes directly to the real executable and remains
 usable with broken configuration. These default fast paths also bypass

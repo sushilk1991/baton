@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -58,7 +59,14 @@ func manage(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	binary, err := os.Executable()
+	// Preserve the invoked link, such as /opt/homebrew/bin/baton. Resolving
+	// its versioned target would strand wrappers after a package upgrade.
+	// ErrDot is allowed because this records a path rather than executing it.
+	binary, err := exec.LookPath(os.Args[0])
+	if err != nil && !errors.Is(err, exec.ErrDot) {
+		return err
+	}
+	binary, err = filepath.Abs(binary)
 	if err != nil {
 		return err
 	}

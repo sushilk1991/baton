@@ -1,5 +1,40 @@
 # Progress
 
+## Review fixes, iteration 3 (2026-10-28)
+
+Shipped locally: Shim fallback only; the third review item is checked off.
+macOS/Linux shims exec the real tool when baton is missing or lacks execute
+permission. Fallback removes every occurrence of the current wrapper from
+PATH, including aliases; copied wrappers remove their entries in turn.
+Installations preserve the absolute invoked path and its symlinks, including
+relative paths and PATH entries, so package upgrades can replace the target.
+
+Verified: native `make check`, `golang:1.27` Docker `make check`, and
+`golangci/golangci-lint:v2.15.0` exited 0; lint reported `0 issues.`
+Both full gates passed vet, race tests, and all five cross-builds. Real CLI
+regressions cover moved/non-executable binaries, normal/off mode, exits 0/3,
+quoted and empty arguments, symlink aliases, copied wrappers, and absent
+real commands. A real executable in the cwd remains unselected when all
+PATH entries were removed. A replaced install symlink still schedules the
+tool in encode and records history. All tests used private HOME/XDG paths.
+
+Red evidence: `.yoyo/review-shim-red-{native,linux}.log` (exit 1). All eight
+fallback cases failed on both systems; Linux also lost the install symlink.
+Native already preserved that link. An additional red regression caught
+`exec.ErrDot` for an already-running invocation found through `PATH=.`;
+`.yoyo/review-shim-relative-red.log` preserves it. Final green evidence:
+`.yoyo/review-shim-{native,linux,lint,targeted}.log`.
+Full evidence: `.yoyo/review-shim-report.md`.
+
+Pending: four review fixes and Final gate. Windows batch wrappers remain
+best effort without this Unix fallback; only Windows cross-builds ran.
+A binary disappearing between the availability check and exec can still
+fail. Fallback creates no scheduling/history records. Decisions are in
+`docs/architecture.md`; actual package manager upgrades were not run.
+
+Next: read `.yoyo/loop-state.md`, then write the uninstall-after-edits red
+regressions for settings.json and instruction snippets.
+
 ## Review fixes, iteration 2 (2026-10-28)
 
 Shipped locally: nested jobs only; the second review item is checked off.
