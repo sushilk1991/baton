@@ -1117,12 +1117,14 @@ terminal. It watches the shell's kernel birth token, UID, and exit state;
 normal exit, SIGKILL, and PID reuse release the reservation. Shell death
 also cancels queued admission. An inspection error alone does not prove an
 exit. The keeper never signals the shell or its descendants. Its own death
-releases the kernel locks. This is one temporary keeper per shell/lane,
+releases the kernel locks. This is one temporary keeper per shell,
 with no installed service. Windows reports that `hold` is unsupported.
 
 A reservation lasts until the calling shell exits, including commands after
-the original. Repeated holds reuse their lane; shims in any lane share the
-shell's reservation through verified ancestry.
+the original. A hold under any live ancestor reservation (a run, a shim,
+or an earlier hold, in any lane) returns at once, as a nested run does,
+so x -> hold y alongside y -> hold x cannot wait in a circle. Shims in
+any lane share the shell's reservation through verified ancestry.
 The holder's PID and the shell's PID/birth token are separate record fields:
 baton did not start that shell, so the reservation cannot establish reap
 provenance. Status and history label it `shell hold`. Its history describes

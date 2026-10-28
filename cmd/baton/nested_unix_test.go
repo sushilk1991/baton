@@ -163,6 +163,45 @@ func TestNestedOtherLaneShares(t *testing.T) {
 	t.Log("encode shim completed inside install while encode remained occupied")
 }
 
+// A shell hold follows the same rule as run: any ancestor reservation covers
+// it, so x -> hold y alongside y -> hold x cannot wait in a circle.
+func TestNestedHoldOtherLane(t *testing.T) {
+	isolateShim(t)
+	binary := buildShimCLI(t)
+	writeNestedConfig(t)
+	root := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton")
+	q, err := queue.New(root, "encode", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ticket.Close()
+	lease, err := ticket.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lease.Release() }()
+
+	// encode is full, so a hold that queued would miss the deadline.
+	script := shellQuoteTest(binary) + " hold --lane encode --pid $$ && printf finished"
+	if got := runNestedCLI(t, binary, 0, "run", "--lane", "install", "--", "/bin/sh", "-c", script); got != "finished" {
+		t.Fatalf("different-lane hold stdout %q", got)
+	}
+
+	view, err := queue.Observe(context.Background(), root, "encode", 1)
+	if err != nil || view.Used != 1 || len(view.Waiting) != 0 {
+		t.Fatalf("nested hold changed the unrelated reservation: %+v, %v", view, err)
+	}
+	t.Log("encode hold returned inside install while encode remained occupied")
+}
+
+func shellQuoteTest(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // Mirrored one-slot jobs must finish without a circular reservation wait.
 func TestNestedCrossLanes(t *testing.T) {
 	isolateShim(t)

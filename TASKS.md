@@ -52,3 +52,10 @@ fix, then green. Order is severity.
 - [x] Reap listing says why: each candidate in `baton reap`'s list names the rule that made it eligible (started by baton, parent dead / adopted orphan of the system init), so the owner sees it before `--yes`. Red test on the listing text.
 
 - [x] Final gate (second pass): `make check` on macOS; the Linux copy-in Docker command from AGENTS.md; golangci-lint v2.15.0 with 0 issues; every README command re-run. The three public-install commands stay recorded as pending owner publication, not a blocker.
+
+## Third review fixes (2026-10-29)
+
+- [x] `baton hold` under any ancestor reservation returns at once, as `run` does, so cross-lane holds cannot deadlock.
+- [ ] On Windows, the Claude hook must not route commands through `baton hold`, which is unsupported there and skips every heavy command.
+- [ ] Ctrl-Z in a program that stops itself with SIGSTOP (nano, mutt) must return the prompt, as it does without baton.
+- [ ] After `&` then `fg`, the terminal returns to the job that ran baton, so the parent can keep reading the tty.

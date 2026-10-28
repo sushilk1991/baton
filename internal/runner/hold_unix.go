@@ -81,7 +81,9 @@ func startHold(ctx context.Context, name string, shell process.Info, diagnostics
 	if err != nil {
 		return err
 	}
-	if lanes[name] != "" {
+	// Any live ancestor reservation covers this shell across lanes, as for
+	// run: x -> hold y alongside y -> hold x must not wait in a circle.
+	if len(lanes) != 0 {
 		return nil
 	}
 	binary, err := os.Executable()
