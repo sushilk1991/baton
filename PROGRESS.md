@@ -1,5 +1,34 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 6 (2026-10-28)
+
+Shipped locally: stable hook path; only that queue item is checked.
+Installed hook commands, returned hold prefixes, and repeated-command
+detection use the absolute invoked path with symlinks retained, matching
+shims. Architecture records the path policy.
+
+Verified: native make check and Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Compiled-CLI tests cover absolute,
+PATH, relative, and relative-PATH invocation through a quoted symlink name.
+They remove the old target, retarget the link, execute the saved hook and
+returned hold prefix, and confirm repeated hook evaluation emits no rewrite.
+The fake tool prints path-ok and exits 0. All checks isolate HOME,
+USERPROFILE, XDG paths, TMPDIR, and Go writes.
+
+Evidence: .yoyo/re-review-hook-path-red-linux.log records all four path
+failures before production edits; the existing shim and installed-hook
+controls passed. The macOS baseline passed and is saved as -before-native.log.
+Green logs are -targeted.log, -native.log, -linux.log, and -lint.log; the
+report and runner share the re-review-hook-path prefix.
+
+Pending: five second-pass items, starting with runtime-only agent labels.
+Existing installed hooks are not migrated. Live Claude loading and Windows
+runtime were not exercised. No real agent settings were written. No push,
+tag, publication, or remote change occurred. SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md, then write the runtime-marker label reds.
+
 ## Re-review fixes, second pass, iteration 5 (2026-10-28)
 
 Shipped locally: hand-removed integration; only that queue item is checked.

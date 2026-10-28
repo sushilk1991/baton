@@ -1111,9 +1111,12 @@ and redirection targets are recognized; shell expansions, functions, script
 contents, here-documents, and `env -S` remain opaque. Use explicit commands
 and shims for those forms and custom commands whose operation is not
 recognized. The runner passes explicit-run reservations to its children;
-shell holds use the ancestry check above. Hook paths bind to the installed
-binary location. No live agent session was modified or used to prove hook
-loading.
+shell holds use the ancestry check above. Installed hook commands and their
+`hold` prefixes use the absolute invoked path, resolved through PATH from
+`os.Args[0]`, with symlinks retained, matching shim installation. A package
+upgrade can retarget that link and remove the old version without breaking
+the hook. Repeated-prefix detection uses the same path, including renamed
+binaries. No live agent session was modified or used to prove hook loading.
 
 The MCP stdio server uses a small stdlib JSON-RPC implementation. Its current
 protocol is 2025-11-25, with the compatible basic tool exchange accepted for

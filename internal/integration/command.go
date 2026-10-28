@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/sushilk1991/baton/internal/config"
@@ -101,7 +102,7 @@ func newInstaller() (installer, error) {
 	if err != nil {
 		return installer{}, err
 	}
-	binary, err := os.Executable()
+	binary, err := invokedBinary()
 	if err != nil {
 		return installer{}, err
 	}
@@ -116,6 +117,16 @@ func newInstaller() (installer, error) {
 	}
 	root, err := resolvePath(paths.DataDir)
 	return installer{home, base, root, binary}, err
+}
+
+func invokedBinary() (string, error) {
+	// Match shim installation: retain the invoked link across package upgrades.
+	// ErrDot is safe here because this records an absolute path, not an exec.
+	binary, err := exec.LookPath(os.Args[0])
+	if err != nil && !errors.Is(err, exec.ErrDot) {
+		return "", err
+	}
+	return filepath.Abs(binary)
 }
 
 func (i installer) manage(action operation, mode application, claude hookPolicy, out io.Writer) error {

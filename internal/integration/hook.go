@@ -69,7 +69,7 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 	if lane == "" {
 		return nil
 	}
-	binary, err := os.Executable()
+	binary, err := invokedBinary()
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 }
 
 func queuedCommand(words []string) bool {
-	binary, _ := os.Executable()
+	binary, _ := invokedBinary()
 	if len(words) < 2 || words[1] != "run" {
 		return false
 	}
@@ -121,6 +121,6 @@ func holdPrefix(words []string) bool {
 	if len(words) != 6 || words[1] != "hold" || words[2] != "--lane" || words[4] != "--pid" || words[5] != "$$" {
 		return false
 	}
-	binary, _ := os.Executable()
+	binary, _ := invokedBinary()
 	return words[0] == binary || filepath.Base(words[0]) == "baton"
 }
