@@ -93,6 +93,9 @@ segment selects the lane for the whole command. Quoted separators,
 comments, and redirection targets are ignored. Shell expansions, functions, scripts, here-docs, and `env -S`
 are opaque. Use explicit `baton run` or shims for those forms.
 This hook coordinates work; it does not enforce a security boundary.
+Both hook modes need `baton hold`, so they run on macOS and Linux only.
+On Windows, `init` refuses the hook flags, and an installed hook leaves
+every command unchanged.
 For clients without input-rewrite support, install with
 `baton init --yes --claude-hook-block` instead. That hook exits 2 and prints
 the exact queued command on stderr. Retrying that command passes through.

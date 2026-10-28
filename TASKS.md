@@ -56,6 +56,6 @@ fix, then green. Order is severity.
 ## Third review fixes (2026-10-29)
 
 - [x] `baton hold` under any ancestor reservation returns at once, as `run` does, so cross-lane holds cannot deadlock.
-- [ ] On Windows, the Claude hook must not route commands through `baton hold`, which is unsupported there and skips every heavy command.
+- [x] On Windows, the Claude hook must not route commands through `baton hold`, which is unsupported there and skips every heavy command.
 - [x] Ctrl-Z in a program that stops itself with SIGSTOP (nano, mutt) must return the prompt, as it does without baton.
 - [x] After `&` then `fg`, the terminal returns to the job that ran baton, so the parent can keep reading the tty.

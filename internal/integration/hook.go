@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/sushilk1991/baton/internal/config"
 )
@@ -14,6 +15,10 @@ import (
 const (
 	hookLimit = 1 << 20
 )
+
+// holdSupported is false on Windows, where baton hold always exits 1. The
+// hook then leaves commands alone, and init refuses to install it.
+var holdSupported = runtime.GOOS != "windows"
 
 func hook(in io.Reader, out, diagnostics io.Writer, policy hookPolicy) int {
 	if os.Getenv("BATON") == batonDisabled {
@@ -53,6 +58,9 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 		return err
 	}
 	if request.Event != "PreToolUse" || request.Tool != "Bash" {
+		return nil
+	}
+	if !holdSupported {
 		return nil
 	}
 	var command string

@@ -34,7 +34,12 @@ func TestInitLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, args := range [][]string{{"init", "--dry-run", "--claude-hook"}, {"init"}} {
+	// The Claude Code hook needs baton hold, which Windows lacks.
+	hook := []string{"--claude-hook"}
+	if runtime.GOOS == "windows" {
+		hook = nil
+	}
+	for _, args := range [][]string{append([]string{"init", "--dry-run"}, hook...), {"init"}} {
 		var out, diag bytes.Buffer
 		if code := run(args, &out, &diag); code != 0 {
 			t.Fatalf("%v: code=%d %s", args, code, &diag)
@@ -47,7 +52,7 @@ func TestInitLifecycle(t *testing.T) {
 		}
 	}
 	var out, diag bytes.Buffer
-	if code := run([]string{"init", "--yes", "--claude-hook"}, &out, &diag); code != 0 {
+	if code := run(append([]string{"init", "--yes"}, hook...), &out, &diag); code != 0 {
 		t.Fatalf("install: code=%d %s", code, &diag)
 	}
 	skill, err := os.ReadFile(filepath.Join(home, ".agents/skills/baton/SKILL.md"))
@@ -75,7 +80,7 @@ func TestInitLifecycle(t *testing.T) {
 	if settings["env"].(map[string]any)["FIXTURE"] != "keep" {
 		t.Fatal("lost settings")
 	}
-	if code := run([]string{"init", "--yes", "--claude-hook"}, &out, &diag); code != 0 {
+	if code := run(append([]string{"init", "--yes"}, hook...), &out, &diag); code != 0 {
 		t.Fatalf("repeat: %d %s", code, &diag)
 	}
 	for path, want := range installed {

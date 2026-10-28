@@ -153,7 +153,7 @@ func TestHook(t *testing.T) {
 			if code := Run([]string{"_hook"}, bytes.NewReader(input), &out, &diag); code != 0 {
 				t.Fatalf("code=%d %s", code, &diag)
 			}
-			if !tc.wrapped {
+			if !tc.wrapped || !holdSupported {
 				if out.Len() != 0 {
 					t.Fatalf("unexpected wrapper: %s", &out)
 				}
@@ -355,6 +355,9 @@ func TestMalformedManifest(t *testing.T) {
 func TestBlockingHook(t *testing.T) {
 	isolate(t)
 	requireLinks(t)
+	if !holdSupported {
+		t.Skip("the Claude Code hook requires baton hold")
+	}
 	home := os.Getenv("HOME")
 	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0700); err != nil {
 		t.Fatal(err)

@@ -69,6 +69,10 @@ func Run(args []string, in io.Reader, out, diagnostics io.Writer) int {
 		fmt.Fprintln(diagnostics, usage)
 		return exitUsage
 	}
+	if (*claude || *block) && !holdSupported {
+		fmt.Fprintln(diagnostics, "baton init: the Claude Code hook requires macOS or Linux")
+		return exitUsage
+	}
 	install, err := newInstaller()
 	if err == nil {
 		action, mode, hook := installAgents, previewChanges, withoutHook

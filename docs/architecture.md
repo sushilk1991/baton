@@ -1123,7 +1123,8 @@ normal exit, SIGKILL, and PID reuse release the reservation. Shell death
 also cancels queued admission. An inspection error alone does not prove an
 exit. The keeper never signals the shell or its descendants. Its own death
 releases the kernel locks. This is one temporary keeper per shell,
-with no installed service. Windows reports that `hold` is unsupported.
+with no installed service. Windows reports that `hold` is unsupported,
+so the hook passes commands through there and `init` refuses its flags.
 
 A reservation lasts until the calling shell exits, including commands after
 the original. A hold under any live ancestor reservation (a run, a shim,

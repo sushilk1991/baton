@@ -3,6 +3,8 @@ package integration
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -126,6 +128,12 @@ func TestHookExecutables(t *testing.T) {
 				}
 				return
 			}
+			if !holdSupported {
+				if out.Len() != 0 {
+					t.Fatalf("rewrote without hold: %s", &out)
+				}
+				return
+			}
 			var response struct {
 				Output struct {
 					Input struct {
@@ -147,4 +155,34 @@ func TestHookExecutables(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Without baton hold (Windows), the hook must never rewrite a command:
+// "hold ... && cmd" would skip cmd because hold always exits 1 there.
+func TestHookWithoutHold(t *testing.T) {
+	isolate(t)
+	t.Setenv("SHELL", "/bin/sh")
+	supported := holdSupported
+	holdSupported = false
+	t.Cleanup(func() { holdSupported = supported })
+
+	input := `{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ffmpeg -i a b"}}`
+	for _, policy := range []string{"_hook", "_hook-block"} {
+		var out, diag bytes.Buffer
+		if code := Run([]string{policy}, strings.NewReader(input), &out, &diag); code != 0 || out.Len() != 0 || diag.Len() != 0 {
+			t.Fatalf("%s rewrote a heavy command without hold: code=%d out=%s diag=%s", policy, code, &out, &diag)
+		}
+	}
+
+	// init refuses to install a hook that cannot queue, and writes nothing.
+	for _, flag := range []string{"--claude-hook", "--claude-hook-block"} {
+		var out, diag bytes.Buffer
+		if code := Run([]string{"--yes", flag}, strings.NewReader(""), &out, &diag); code != exitUsage || !strings.Contains(diag.String(), "requires macOS or Linux") {
+			t.Fatalf("init %s without hold: code=%d diag=%s", flag, code, &diag)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(os.Getenv("HOME"), ".claude", "settings.json")); !os.IsNotExist(err) {
+		t.Fatalf("refused init wrote Claude settings: %v", err)
+	}
+	t.Log("hook passed the command through; init refused both hook flags")
 }
