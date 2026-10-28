@@ -506,12 +506,28 @@ Shell quoting preserves literal Unix paths, including single quotes.
 Shell guidance supports sh/zsh/bash, fish, and best-effort Windows cmd and
 PowerShell. No command edits shell configuration.
 
-An admitted shim job marks its descendants through an inherited environment
-value. Descendant shims resolve their tools and execute directly within the
-parent reservation; they add no tickets or history. Otherwise a tool such
-as `ffmpeg outer` invoking `ffmpeg inner` could wait forever for its own
-slot. Unmatched root commands carry no reservation marker. Descendants can
-still outlive a crashed wrapper, as described under command execution.
+Every admitted run passes `_BATON_LANES`, a JSON map of lane names to owning
+job IDs, to its child. Shims use the same runner path as explicit calls.
+A same-lane descendant reuses the ancestor's reservation without another
+ticket or memory wait; history records `nested: true`. A different lane
+queues normally and passes both reservations to deeper descendants:
+
+```text
+run install -> run encode -> run install
+holds slot     holds slot     reuses first install slot
+```
+
+Inheritance requires a non-nested job record in the same state directory
+whose owner lock is still held. Expired, malformed, or foreign-state markers
+grant no bypass. The runner passes its marker only after admission. Its
+first child can arrive while metadata still says queued; the monitor
+publishes running metadata after capturing the child's kernel birth token.
+The environment changes only for the child; unmatched commands add no
+reservation. These markers are cooperative scheduling metadata. Same-lane
+descendants share the parent's weight and memory budget; they do not expand
+it. Parallel children within that reservation need their tool's own limits.
+Descendants can still outlive a crashed wrapper, as described under command
+execution; inherited markers do not retain its slot after it exits.
 
 A SHA-256 manifest records owned wrapper bytes. Install, uninstall, and
 manifest writes share a kernel management lock; a competing management
@@ -528,8 +544,8 @@ Real CLI tests invoke installed wrappers through PATH with temporary home
 and XDG directories. They cover automatic encode admission behind an
 occupied slot, release, exit 37, literal argv, a quoted baton path, changed
 real executables, symlink aliases, direct fast paths, bypass with broken
-TOML, recursive external wrappers, nested jobs without another reservation
-or history record, and owned-file uninstall. Unit tests cover policy
+TOML, recursive external wrappers, nested jobs sharing a reservation with
+their own history records, and owned-file uninstall. Unit tests cover policy
 overrides, missing tools, manifest recovery, user-file
 preservation, invalid names, management contention, and closed output.
 
@@ -911,8 +927,8 @@ command as one Bash job. The blocking hook alternative
 (`--claude-hook-block`) exits 2 with the exact queued command for clients
 without input-rewrite support. No shell command executes during
 classification. Quote tokenization avoids wrapping commands that already contain baton run. The
-child shell receives the existing shim admission marker, preventing a shim
-from waiting on the slot its parent holds. Shell expansion and script
+runner passes its lane reservation to the child shell, preventing a same-lane
+shim from waiting on the slot its parent holds. Shell expansion and script
 contents remain opaque. This is advisory routing; explicit commands and shims cover cases outside the classifier. Hook paths
 bind to the installed binary location. No live agent session was modified
 or used to establish hook-loading proof.
@@ -962,10 +978,10 @@ strings use backticks when shell quotes are present; its lexer does not
 interpret backslash-escaped string delimiters. Parser validation and actual
 shell-command execution are separate checks from rendering the GIF.
 
-Manual run wrappers do not set the descendant shim admission marker. The
-docs therefore show one wrapping method at a time, or an outer reservation
-with `env BATON=off` for the child tree. This preserves outer scheduling
-without nested waits on the parent's slot.
+Manual runs and shims share lane inheritance. An explicit child
+`env BATON=off` remains available to cover a complete tree with only the
+outer reservation; it also bypasses scheduling in other lanes and suppresses
+descendant history.
 
 Community policies point to GitHub's private reporting entry point
 conditionally. Its availability is unverified; a dedicated private contact

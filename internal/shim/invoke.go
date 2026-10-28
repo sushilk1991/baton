@@ -44,7 +44,7 @@ func invoke(name string, args []string) (int, error) {
 		}
 		return exitNotExecutable, err
 	}
-	if os.Getenv("BATON") == "off" || os.Getenv(jobKey) == admittedJob {
+	if os.Getenv("BATON") == "off" {
 		return direct(real, args)
 	}
 	settings, err := config.Load()
@@ -60,13 +60,6 @@ func invoke(name string, args []string) (int, error) {
 	// Keep argument boundaries intact; classification uses the real basename.
 	command := append([]string{real}, args...)
 
-	// An admitted job owns its whole process tree. Descendant shims run in
-	// that reservation so a child cannot wait on a slot held by its parent.
-	if settings.AutoLane(command) != "" {
-		if err := os.Setenv(jobKey, admittedJob); err != nil {
-			return exitFailure, err
-		}
-	}
 	runArgs := append([]string{"--lane", "auto", "--"}, command...)
 	return runner.Run(runArgs, os.Stdin, os.Stdout, os.Stderr), nil
 }

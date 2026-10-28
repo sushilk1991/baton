@@ -169,7 +169,7 @@ func TestHook(t *testing.T) {
 				t.Fatal(err)
 			}
 			updated, _ := response.Output.Input["command"].(string)
-			if response.Output.Event != "PreToolUse" || response.Output.Decision == "allow" || !strings.Contains(updated, "run --lane") || !strings.Contains(updated, " bash -c ") || !strings.Contains(updated, "_BATON_SHIM_JOB=1") || response.Output.Input["timeout"] != float64(123) {
+			if response.Output.Event != "PreToolUse" || response.Output.Decision == "allow" || !strings.Contains(updated, "run --lane") || !strings.Contains(updated, " bash -c ") || response.Output.Input["timeout"] != float64(123) {
 				t.Fatalf("wrapper: %s", &out)
 			}
 			input, _ = json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": response.Output.Input})

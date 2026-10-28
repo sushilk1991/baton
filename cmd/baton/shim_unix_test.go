@@ -69,8 +69,8 @@ func TestShimFlow(t *testing.T) {
 		t.Fatalf("nested invocation: %q", got)
 	}
 	data, err = os.ReadFile(history)
-	if err != nil || bytes.Count(data, []byte("\n")) != 3 {
-		t.Fatalf("nested child acquired separate telemetry: %s, %v", data, err)
+	if err != nil || bytes.Count(data, []byte("\n")) != 4 || bytes.Count(data, []byte(`"nested":true`)) != 1 {
+		t.Fatalf("nested child missing history: %s, %v", data, err)
 	}
 
 	// Uninstall removes owned files and leaves unrelated directory entries.
@@ -122,13 +122,6 @@ func TestShimBypassAndQueue(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "history.jsonl")); !os.IsNotExist(err) {
 		t.Fatalf("fast path recorded history: %v", err)
 	}
-	// A descendant already belongs to an admitted process tree. Scheduling
-	// it again could wait forever on the parent's occupied lane.
-	t.Setenv("_BATON_SHIM_JOB", "1")
-	if got := shimCLI(t, filepath.Join(dir, "ffmpeg"), 0, "-i", "input"); got != "executed" {
-		t.Fatalf("nested job: %q", got)
-	}
-	t.Setenv("_BATON_SHIM_JOB", "")
 	// A non-fast invocation must actually wait, then run after release.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -255,5 +248,5 @@ func isolateShim(t *testing.T) {
 	t.Helper()
 	isolateHome(t)
 	t.Setenv("_BATON_SHIM_CHAIN", "")
-	t.Setenv("_BATON_SHIM_JOB", "")
+	t.Setenv("_BATON_LANES", "")
 }

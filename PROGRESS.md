@@ -1,5 +1,40 @@
 # Progress
 
+## Review fixes, iteration 2 (2026-10-28)
+
+Shipped locally: nested jobs only; the second review item is checked off.
+Explicit runs, shims, and hook wrappers share live ancestor reservations
+for the same lane. Nested jobs retain history with `nested: true`; other
+lanes still queue. The child environment carries lane/job IDs without
+changing the runner's own environment. Installed skill and AGENTS snippet
+commands require no changes.
+
+Verified: native `make check`, `golang:1.27` Docker `make check`, and
+`golangci/golangci-lint:v2.15.0` exited 0; lint reported `0 issues.`
+Both full gates passed vet, race tests, and all five cross-builds. Real CLI
+regressions execute the four installed skill recipes, the instantiated
+AGENTS template, and explicit npm wrapping with recursive fake tools and
+installed shims. Each produces three history records, two nested. A direct
+install -> encode -> install chain preserves exit 3 and releases both lanes.
+A different-lane shim waits behind an occupied slot. Unit tests reject stale,
+malformed, and unmatched markers. All tests used private HOME/XDG paths and
+only signalled their own children.
+
+Red evidence: `.yoyo/review-nested-red-native.log` (exit 1, all seven original
+cases timed out). The first full native gate exposed premature running
+metadata without a birth token; `.yoyo/review-nested-native-first.log`
+retains that failure. The final code preserves the existing birth-token
+publication rule and its unchanged regression. Green evidence:
+`.yoyo/review-nested-{native,linux,lint,targeted}.log`.
+Full evidence: `.yoyo/review-nested-report.md`.
+
+Pending: five review fixes and Final gate. Same-lane descendants share the
+parent's slots and memory budget; internal parallelism needs tool limits.
+Inheritance expires with the owner lock and does not retain slots after a
+parent crash. Decisions are recorded in `docs/architecture.md`.
+
+Next: read `.yoyo/loop-state.md`, then write the Shim fallback red tests.
+
 ## Review fixes, iteration 1 (2026-10-28)
 
 Shipped locally: reap safety only; the first review item is checked off.

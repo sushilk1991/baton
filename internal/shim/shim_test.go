@@ -257,7 +257,6 @@ func isolateHome(t *testing.T) {
 	t.Setenv("USERPROFILE", os.Getenv("HOME"))
 	t.Setenv("BATON", "")
 	t.Setenv(chainKey, "")
-	t.Setenv(jobKey, "")
 }
 
 type failedWriter struct{}

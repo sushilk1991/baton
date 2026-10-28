@@ -90,7 +90,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	stop := control.watch(ctx)
 	defer stop()
 	if os.Getenv("BATON") == "off" {
-		return execute(ctx, control, opts.args, ioSet, nil)
+		return execute(ctx, control, opts.args, nil, ioSet, nil)
 	}
 
 	root, err := stateRoot()
@@ -105,6 +105,14 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	if err != nil {
 		return control.waitCode(), err
 	}
+	// Only live inherited reservations can cover this lane. A different lane
+	// still queues, while install -> encode -> install reuses the first slot.
+	lanes, err := inheritedLanes(ctx, store)
+	if err != nil {
+		return control.waitCode(), err
+	}
+	job.Nested = opts.lane != "" && lanes[opts.lane] != ""
+
 	if opts.memory == 0 {
 		opts.memory, err = store.predict(ctx, job.Signature)
 		if err != nil {
@@ -146,7 +154,13 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	}
 	job.Start = time.Now().UTC()
 	job.WaitNanos = job.Start.Sub(job.Queued).Nanoseconds()
-	code, runErr := execute(ctx, control, opts.args, ioSet, func(command *exec.Cmd, done <-chan struct{}) {
+	// Pass reservations only after admission. The existing monitor publishes
+	// running identity after capturing the child's kernel birth token.
+	env, err := childEnvironment(lanes, job)
+	if err != nil {
+		return control.waitCode(), err
+	}
+	code, runErr := execute(ctx, control, opts.args, env, ioSet, func(command *exec.Cmd, done <-chan struct{}) {
 		job.PID = command.Process.Pid
 		// Persist a birth token for reap. Inspection failure leaves this optional
 		// field empty; never replace the child exit status with metadata failure.
@@ -172,7 +186,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 }
 
 func admit(ctx context.Context, opts options, store *store, job *jobRecord, out io.Writer) (*lane.Lease, error) {
-	if opts.lane == "" {
+	if opts.lane == "" || job.Nested {
 		return nil, nil
 	}
 	provider := opts.provider
@@ -204,8 +218,9 @@ func admit(ctx context.Context, opts options, store *store, job *jobRecord, out 
 	return gate.Acquire(ctx, ticket, opts.memory, out)
 }
 
-func execute(ctx context.Context, control *supervisor, args []string, ioSet streams, sample func(*exec.Cmd, <-chan struct{})) (int, error) {
+func execute(ctx context.Context, control *supervisor, args, env []string, ioSet streams, sample func(*exec.Cmd, <-chan struct{})) (int, error) {
 	command := exec.Command(args[0], args[1:]...)
+	command.Env = env
 	command.Stdin, command.Stdout, command.Stderr = ioSet.in, ioSet.out, ioSet.err
 	restore := prepareGroup(command, ioSet.in)
 	defer func() {

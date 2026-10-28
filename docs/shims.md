@@ -53,13 +53,15 @@ without a lane. Shims preserve argument boundaries and inherited stdio.
 
 ## Whole-command reservations
 
-An admitted shim marks its descendants so they use the same reservation.
-For example, an npm install that invokes another shim does not wait on its
-own lane. It does not receive extra slots for its descendants.
+Every admitted `baton run`, including a shim, marks the lanes held by its
+ancestors. A child run or shim in the same lane shares that reservation and
+records `nested: true` in history. For example, `baton run --lane install --
+npm ci` works with npm shims installed, including npm calls from its scripts.
+It grants no extra slots or memory; limit the tool's internal parallelism.
+Children in other lanes queue normally. Expired reservations grant no bypass.
 
-Manual `baton run` does not set that shim marker. Wrapping a shimmed command
-manually can make the child wait on its parent's slot. Use one wrapping
-method. To reserve an entire shell/build tree and bypass descendant shims:
+To cover every descendant with only the outer reservation, bypass the child
+tree explicitly:
 
 ```sh
 baton run --lane build -- env BATON=off make test

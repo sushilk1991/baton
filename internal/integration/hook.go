@@ -13,10 +13,7 @@ import (
 	"github.com/sushilk1991/baton/internal/config"
 )
 
-const (
-	hookLimit       = 1 << 20
-	admittedShimEnv = "_BATON_SHIM_JOB=1"
-)
+const hookLimit = 1 << 20
 
 func hook(in io.Reader, out, diagnostics io.Writer, policy hookPolicy) int {
 	if os.Getenv("BATON") == "off" {
@@ -81,7 +78,7 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 	if err != nil {
 		return err
 	}
-	wrapped := shellQuote(binary) + " run --lane " + shellQuote(lane) + " -- env " + admittedShimEnv + " bash -c " + shellQuote(command)
+	wrapped := shellQuote(binary) + " run --lane " + shellQuote(lane) + " -- bash -c " + shellQuote(command)
 	if policy == withClaudeBlock {
 		return blockedCommand(wrapped)
 	}

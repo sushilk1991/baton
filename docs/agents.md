@@ -65,14 +65,16 @@ For a matching heavy command it returns `updatedInput.command` containing
 an explicit-lane wrapper:
 
 ```sh
-baton run --lane encode -- env _BATON_SHIM_JOB=1 bash -c 'original command'
+baton run --lane encode -- bash -c 'original command'
 ```
 
 It preserves other tool-input fields. It never returns an `allow` decision,
 so normal Claude permissions still apply. Commands already containing
-`baton run` and `BATON=off` bypass the hook. The admission marker keeps descendant shims
-from queueing again. Keep the executable at the installed path. Uninstall before changing its
-location or switching hook modes, then install again.
+`baton run` and `BATON=off` bypass the hook. The runner's inherited lane
+reservation keeps same-lane descendant shims from queueing again and records
+them as nested in history. Keep the executable at the installed path.
+Uninstall before changing its location or switching hook modes, then install
+again.
 
 The classifier tokenizes quotes for matching; it does not interpret shell
 expansions, functions, or scripts. Shell commands hidden behind those forms

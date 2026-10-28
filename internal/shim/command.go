@@ -26,8 +26,6 @@ const (
 	manifestName      = "shim-manifest.json"
 	lockName          = "shims.lock"
 	chainKey          = "_BATON_SHIM_CHAIN"
-	jobKey            = "_BATON_SHIM_JOB"
-	admittedJob       = "1"
 )
 
 type installation struct {
