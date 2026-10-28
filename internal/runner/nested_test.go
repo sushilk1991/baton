@@ -125,10 +125,12 @@ func TestNestedMemoryGate(t *testing.T) {
 				limit, minimum = 20*time.Millisecond, 20*time.Millisecond
 			}
 			opts.provider = provider
+			// Start timing before arming the deadline: a thread descheduled
+			// between the two would otherwise shorten the measured wait.
+			started := time.Now()
 			ctx, cancel := context.WithTimeout(context.Background(), limit)
 			defer cancel()
 			var diagnostics bytes.Buffer
-			started := time.Now()
 			lease, err := admit(ctx, opts, store, &jobRecord{ID: "nested", Nested: true}, &diagnostics)
 			elapsed := time.Since(started)
 			if lease != nil {
