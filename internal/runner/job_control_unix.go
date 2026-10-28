@@ -163,6 +163,13 @@ func resumeJob(command *exec.Cmd, mode resumeMode) error {
 	if err := terminalGroup(fd, syscall.TIOCGPGRP, &foreground); err != nil {
 		return err
 	}
+
+	// A late supervisor CONT must not undo the foreground child's next stop.
+	// Once the child owns the tty, its owner controls any further resumption.
+	if int(foreground) == command.Process.Pid {
+		return nil
+	}
+
 	if int(foreground) != syscall.Getpgrp() && mode == resumeForeground {
 		return nil
 	}

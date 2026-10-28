@@ -300,6 +300,12 @@ the job's lifetime. See Bash's [start_job implementation](https://github.com/app
 it gives a foreground job the terminal, then sends SIGCONT only if the job
 was stopped (checked 2026-10-28).
 
+A supervisor SIGCONT sends no signal when the child already owns the tty.
+The suspension path has already resumed that child; a delayed notification
+must not undo its next Ctrl-Z or an independent SIGSTOP. Paired bare/queued
+PTY tests stop the foreground child, continue only its waiting parent, and
+verify that the child stays stopped until explicitly continued.
+
 Completion restores only a tty still owned by the child; failed exec also
 restores it. A failed tty handoff resumes the child before waiting, so
 pending HUP/TERM or ordinary completion can finish it.

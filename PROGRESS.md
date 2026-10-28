@@ -1,5 +1,40 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 11 (2026-10-28)
+
+Shipped locally: the second-pass final gate is checked; no queue items
+remain. The gate exposed a continuation bug: SIGCONT sent to a runnable
+supervisor resumed its independently stopped foreground child. The runner
+now skips continuation when the child already owns the tty. Architecture
+records the guard; paired bare/queued PTY tests cover it.
+
+Verified: native make check and Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Background, foreground, and parent
+PTY suites each passed ten repeats on both platforms: bash/zsh on macOS,
+bash on Linux. README replay accounts for all nine shell blocks: seventeen
+executed invocations and twenty-one assertions passed. The demo jobs did
+not overlap, integration originals were restored byte for byte, the owned
+headless browser stopped, and public status showed no jobs or waiters.
+All checks isolate HOME, USERPROFILE, XDG paths, TMPDIR, and Go writes.
+
+Evidence: .yoyo/re-review-final-red-native.log captures the new regression
+failing for queued bash/zsh while both bare controls pass. The first Linux
+gate's Ctrl-Z timeout remains in -linux-first.log. A delayed supervisor
+continuation could explain it; the exact signal ordering was not captured.
+Final -native, -linux, -lint,
+-targeted, -refutation-native, -linux-pty, -readme, and -audit logs record
+green results. The initial readiness audit also failed before fresh gate
+evidence existed. docs/verification.md records the final scope and limits.
+
+Pending: the three public installs await owner publication under TASKS.md's
+explicit exception; they were not retried. Hosted CI, Windows runtime,
+live agent loading, and stress were not rerun. No push, tag, publication,
+remote change, or real agent settings write occurred. SPEC.md and README.md
+are unchanged.
+
+Next: run the caller's completion check; no second-pass queue work remains.
+
 ## Re-review fixes, second pass, iteration 10 (2026-10-28)
 
 Shipped locally: reap listing reasons; only that queue item is checked.

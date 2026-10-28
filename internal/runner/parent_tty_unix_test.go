@@ -15,7 +15,10 @@ import (
 	"time"
 )
 
-const parentTrapHelper = "BATON_PARENT_TRAP_HELPER"
+const (
+	parentTrapHelper  = "BATON_PARENT_TRAP_HELPER"
+	parentStateSettle = 100 * time.Millisecond
+)
 
 // TestParentJobControl compares queued and bare shell job control.
 func TestParentJobControl(t *testing.T) {
@@ -31,7 +34,7 @@ func TestParentJobControl(t *testing.T) {
 		if _, err := os.Stat(shell); os.IsNotExist(err) {
 			continue
 		}
-		for _, scenario := range []string{"parent", "outside-stop", "bg-fg"} {
+		for _, scenario := range []string{"parent", "outside-stop", "supervisor-continue", "bg-fg"} {
 			for _, mode := range []string{"bare", "baton"} {
 				t.Run(filepath.Base(shell)+"/"+scenario+"/"+mode, func(t *testing.T) {
 					testParentControl(t, binary, shell, scenario, mode)
@@ -84,20 +87,37 @@ func testParentControl(t *testing.T, binary, shell, scenario, mode string) {
 		cleanOwnedGroup(t, child)
 	}
 
-	if scenario == "outside-stop" {
+	if scenario == "outside-stop" || scenario == "supervisor-continue" {
 		// An external debugger/owner may stop only the child. The waiter must
 		// remain runnable, then reap it without requiring a separate CONT.
 		if err := syscall.Kill(child, syscall.SIGSTOP); err != nil {
 			t.Fatal(err)
 		}
 		awaitProcessStop(t, child)
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(parentStateSettle)
 		if mode == "baton" {
 			owner := terminalJob(t).OwnerPID
 			if strings.Contains(processState(t, owner), "T") {
 				t.Fatalf("outside SIGSTOP also stopped baton PID %d", owner)
 			}
 		}
+
+		if scenario == "supervisor-continue" {
+			// A late CONT for the supervisor must not override a foreground
+			// child's independent stop; only its owner may resume it.
+			owner := parent
+			if mode == "baton" {
+				owner = terminalJob(t).OwnerPID
+			}
+			if err := syscall.Kill(owner, syscall.SIGCONT); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(parentStateSettle)
+			if !strings.Contains(processState(t, child), "T") {
+				t.Fatal("supervisor CONT resumed its independently stopped foreground child")
+			}
+		}
+
 		if err := syscall.Kill(child, syscall.SIGCONT); err != nil {
 			t.Fatal(err)
 		}

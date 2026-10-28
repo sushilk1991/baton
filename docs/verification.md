@@ -1,6 +1,65 @@
 Not verified: the three public installation paths require owner publication.
-The Final gate passes under TASKS.md's publication exception. Nothing was
-pushed, tagged, or published.
+The second-pass Final gate passes under TASKS.md's publication exception.
+Nothing was pushed, tagged, or published.
+
+## Second-pass final gate, iteration 11
+
+Verified on 2026-10-28 with Go 1.27.0, macOS 27.0.1, darwin/arm64.
+Final evidence uses the `.yoyo/re-review-final-` prefix. Each runner log
+records its command, private environment paths, raw output, and exit code.
+
+| Command | Result | Log suffix |
+| --- | --- | --- |
+| macOS `make check` | Exit 0 | `native.log` |
+| Linux copy-in `make check` from AGENTS.md | Exit 0 | `linux.log` |
+| `golangci/golangci-lint:v2.15.0 golangci-lint run ./...` | `0 issues.`, exit 0 | `lint.log` |
+
+Both full gates passed vet, race tests, and five cgo-free cross-builds.
+They skipped optional local lint; the separate pinned linter passed.
+Linux copied the read-only mount from /mnt into /src before make check.
+All checks isolated HOME, USERPROFILE, inherited/standard XDG variables,
+TMPDIR, and Go writes. The linter used a private tmpfs at its TMPDIR.
+
+The first Linux gate timed out on the second Ctrl-Z in TestJobControlPTY.
+A new paired PTY regression then reproduced an unwanted continuation:
+SIGCONT sent to the supervisor resumed its independently stopped foreground
+child. Bare bash/zsh controls passed; queued controls failed before the fix
+(`red-native.log`) and passed afterward (`targeted.log`). The runner now
+sends no continuation when the child already owns the tty. Background,
+foreground, and parent PTY suites each passed ten repeats on both platforms
+(`refutation-native.log`, `linux-pty.log`). macOS covered bash/zsh; Linux
+covered bash. The original failed gate remains in `linux-first.log`.
+
+README replay accounts for all nine shell blocks. Seventeen executed
+invocations and all twenty-one behavior assertions passed, with no timeout.
+The three public installs were recorded as pending owner publication and
+not retried, as the queue permits. Actual summary:
+
+```text
+README gate: 9 shell blocks; 17 executed invocations; 0 failures; 3 pending owner publication
+```
+
+The replay confirmed serialized demo jobs, source installation, instruction
+restoration byte for byte, shim removal, and owned headless-browser shutdown.
+Final public JSON status had empty running/queue arrays and zero used slots.
+The manifest and per-command logs are in `.yoyo/re-review-final-readme/`.
+
+The initial readiness audit failed before fresh gate evidence existed
+(`red-audit.log`). The final audit passed (`audit.log`): tested source,
+immutable SPEC, binary/README hashes, every shell block, all assertions,
+ten PTY repeats per suite/platform, and exactly three publication exceptions.
+The binary was built before commit, with CGO_ENABLED=0 and vcs.modified=true;
+`environment.log` records the measured source hash and image identities.
+
+Inferred: delayed supervisor SIGCONT delivery can explain the first Linux
+timeout; its exact signal ordering was not captured. The direct continuation
+bug is reproduced and fixed. Hosted CI, Windows runtime, live agent loading,
+and stress were not rerun. Earlier benchmark and publication evidence below
+belongs to its named iterations.
+
+Next: after owner publication, verify the three public installation paths.
+
+## Earlier verification
 
 Checked on 2026-10-28: Go 1.27.0, macOS 27.0.1 (26A434), darwin/arm64.
 Iteration 8 tested source revision `26a6333ac3e4afd59654002ef4b05e0fad056263`.

@@ -51,4 +51,4 @@ fix, then green. Order is severity.
 - [x] Settings bytes: install and uninstall keep the user's key order and formatting outside baton's own entry, and never write `&&` or `>` as `&` or `>`. Red test: a settings.json with custom key order and `&&` in an existing hook command round-trips byte for byte except baton's entry.
 - [x] Reap listing says why: each candidate in `baton reap`'s list names the rule that made it eligible (started by baton, parent dead / adopted orphan of the system init), so the owner sees it before `--yes`. Red test on the listing text.
 
-- [ ] Final gate (second pass): `make check` on macOS; the Linux copy-in Docker command from AGENTS.md; golangci-lint v2.15.0 with 0 issues; every README command re-run. The three public-install commands stay recorded as pending owner publication, not a blocker.
+- [x] Final gate (second pass): `make check` on macOS; the Linux copy-in Docker command from AGENTS.md; golangci-lint v2.15.0 with 0 issues; every README command re-run. The three public-install commands stay recorded as pending owner publication, not a blocker.
