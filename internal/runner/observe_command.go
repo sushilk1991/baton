@@ -185,11 +185,11 @@ func printStatus(out io.Writer, view statusView, mode outputMode) error {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintln(table, "\nRUNNING\tAGENT\tREPO\tLANE\tRUNTIME\tRSS\tPID"); err != nil {
+	if _, err := fmt.Fprintln(table, "\nRUNNING\tSTATE\tAGENT\tREPO\tLANE\tRUNTIME\tRSS\tPID"); err != nil {
 		return err
 	}
 	for _, job := range view.Running {
-		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%d\n", cleanText(job.Label), cleanText(job.Agent), cleanText(job.Repo), cleanText(job.Lane), durationText(job.RuntimeNanos), byteText(job.RSSBytes), job.PID); err != nil {
+		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", cleanText(job.Label), cleanText(job.Phase), cleanText(job.Agent), cleanText(job.Repo), cleanText(job.Lane), durationText(job.RuntimeNanos), byteText(job.RSSBytes), job.PID); err != nil {
 			return err
 		}
 	}

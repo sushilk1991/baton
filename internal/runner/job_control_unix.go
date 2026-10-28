@@ -27,8 +27,8 @@ type childWaitInfo struct {
 	_     [waitInfoBytes - waitHeaderBytes]byte
 }
 
-func waitGroup(command *exec.Cmd) error {
-	if !command.SysProcAttr.Foreground {
+func waitGroup(command *exec.Cmd, changed func(string)) error {
+	if command.SysProcAttr.Ctty == noTerminal {
 		return command.Wait()
 	}
 	// Peek without reaping: Cmd.Wait must retain exit status, rusage and pipe
@@ -45,7 +45,11 @@ func waitGroup(command *exec.Cmd) error {
 		if _, err := waitChild(command.Process.Pid, syscall.WSTOPPED|syscall.WNOHANG); err != nil {
 			return errors.Join(err, command.Wait())
 		}
-		if err := suspendJob(command); err != nil {
+		// Publish synchronously: the sampler also stops when baton suspends.
+		changed(phaseStopped)
+		err = suspendJob(command)
+		changed(phaseRunning)
+		if err != nil {
 			// A vanished terminal must not strand the stopped group. Continuing
 			// also lets it handle a pending HUP/TERM before Wait reaps it.
 			_ = signalGroup(command, syscall.SIGCONT)

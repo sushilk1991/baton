@@ -19,6 +19,41 @@ import (
 	"github.com/sushilk1991/baton/internal/queue"
 )
 
+// Stop state stays visible while the process still holds its owner lock.
+func TestStoppedStatus(t *testing.T) {
+	isolateHome(t)
+	root := t.TempDir()
+	store, err := newStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := jobRecord{ID: "stopped", OwnerPID: os.Getpid(), PID: os.Getpid(), Phase: "stopped", Start: time.Now().UTC()}
+	owner, err := lockfile.Try(filepath.Join(root, "jobs", job.ID+".lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	if err := store.publish(job); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A stopped process still owns its reservation and remains an active job.
+	view, err := readStatus(context.Background(), root, cfg, healthyProvider{}, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Running) != 1 || view.Running[0].Phase != "stopped" {
+		t.Fatalf("stopped job hidden: %+v", view)
+	}
+	var out bytes.Buffer
+	if err := printStatus(&out, view, plainOutput); err != nil || !strings.Contains(out.String(), "stopped") {
+		t.Fatalf("plain status hides state: %v\n%s", err, &out)
+	}
+}
+
 // Job metadata may precede ticket publication; the queue owns its sequence.
 func TestQueuedPublicationSequence(t *testing.T) {
 	job := jobRecord{Lane: "build", OwnerPID: 42, Phase: "queued", Label: "waiting"}

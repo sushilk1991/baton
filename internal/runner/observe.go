@@ -72,7 +72,7 @@ func readStatus(ctx context.Context, root string, cfg *config.Config, provider p
 		if job.Lane != "" {
 			names[job.Lane] = true
 		}
-		if job.Phase == "running" {
+		if job.Phase == phaseRunning || job.Phase == phaseStopped {
 			view.Running = append(view.Running, jobView{jobRecord: job, RuntimeNanos: elapsed(now, job.Start)})
 		}
 	}
@@ -191,7 +191,7 @@ func activeJobs(ctx context.Context, root string) ([]jobRecord, error) {
 		if err := json.Unmarshal(data, &job); err != nil {
 			return nil, fmt.Errorf("job %s: %w", path, err)
 		}
-		if job.ID != id || job.OwnerPID < 1 || (job.Phase != "queued" && job.Phase != "running") {
+		if job.ID != id || job.OwnerPID < 1 || (job.Phase != "queued" && job.Phase != phaseRunning && job.Phase != phaseStopped) {
 			return nil, fmt.Errorf("invalid job %s", path)
 		}
 		jobs = append(jobs, job)

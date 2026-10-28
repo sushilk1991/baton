@@ -11,22 +11,27 @@ import (
 	"unsafe"
 )
 
-const signalExitBase = 128
+const (
+	signalExitBase = 128
+	noTerminal     = -1
+)
 
 func prepareGroup(command *exec.Cmd, input io.Reader) func() error {
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Ctty: noTerminal}
 	file, ok := input.(*os.File)
 	if !ok {
 		return func() error { return nil }
 	}
 	var previous int32
-	if err := terminalGroup(file.Fd(), syscall.TIOCGPGRP, &previous); err != nil || int(previous) != syscall.Getpgrp() {
+	if err := terminalGroup(file.Fd(), syscall.TIOCGPGRP, &previous); err != nil {
 		return func() error { return nil }
 	}
+	// Retain the tty for stop/resume even when the caller starts in background.
+	// Ctty alone does not change ownership; only Foreground performs a handoff.
+	command.SysProcAttr.Ctty = int(file.Fd())
 	// The fork driver moves the child to the foreground before exec, avoiding
 	// a read/SIGTTIN race. Piped stdin needs no terminal handoff.
-	command.SysProcAttr.Foreground = true
-	command.SysProcAttr.Ctty = int(file.Fd())
+	command.SysProcAttr.Foreground = int(previous) == syscall.Getpgrp()
 	return func() error {
 		// Restore only a terminal still owned by this child. A shell that ran
 		// bg already owns its terminal and must not have it taken back.

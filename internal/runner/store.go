@@ -20,6 +20,8 @@ const (
 	historyLimit = 10 << 20
 	storePoll    = 10 * time.Millisecond
 	ewmaDivisor  = 4
+	phaseRunning = "running"
+	phaseStopped = "stopped"
 )
 
 type jobRecord struct {

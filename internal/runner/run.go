@@ -65,6 +65,12 @@ type supervisor struct {
 	cancel context.CancelFunc
 }
 
+// Acknowledgement keeps the single metadata writer ahead of process suspension.
+type jobChange struct {
+	phase string
+	ready chan struct{}
+}
+
 // Run parses run arguments, forwards signals, and returns the child's status.
 func Run(args []string, in io.Reader, out, diagnostics io.Writer) int {
 	ioSet := streams{in: in, out: out, err: diagnostics}
@@ -160,7 +166,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 	if err != nil {
 		return control.waitCode(), err
 	}
-	code, runErr := execute(ctx, control, opts.args, env, ioSet, func(command *exec.Cmd, done <-chan struct{}) {
+	code, runErr := execute(ctx, control, opts.args, env, ioSet, func(command *exec.Cmd, done <-chan struct{}, changes <-chan jobChange) {
 		job.PID = command.Process.Pid
 		// Persist a birth token for reap. Inspection failure leaves this optional
 		// field empty; never replace the child exit status with metadata failure.
@@ -168,7 +174,7 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 			job.ProcessStart = info.Start
 		}
 		job.Phase = "running"
-		monitor(store, &job, command, done, ioSet.err)
+		monitor(store, &job, command, done, changes, ioSet.err)
 	})
 	// Cache failures cannot replace the child's status or discard useful work.
 	if cached != nil && code == 0 && runErr == nil {
@@ -218,7 +224,7 @@ func admit(ctx context.Context, opts options, store *store, job *jobRecord, out 
 	return gate.Acquire(ctx, ticket, opts.memory, out)
 }
 
-func execute(ctx context.Context, control *supervisor, args, env []string, ioSet streams, sample func(*exec.Cmd, <-chan struct{})) (int, error) {
+func execute(ctx context.Context, control *supervisor, args, env []string, ioSet streams, sample func(*exec.Cmd, <-chan struct{}, <-chan jobChange)) (int, error) {
 	command := exec.Command(args[0], args[1:]...)
 	command.Env = env
 	command.Stdin, command.Stdout, command.Stderr = ioSet.in, ioSet.out, ioSet.err
@@ -249,15 +255,25 @@ func execute(ctx context.Context, control *supervisor, args, env []string, ioSet
 
 	done := make(chan struct{})
 	monitored := make(chan struct{})
+	changes := make(chan jobChange)
 	if sample != nil {
 		go func() {
-			sample(command, done)
+			sample(command, done, changes)
 			close(monitored)
 		}()
 	} else {
 		close(monitored)
 	}
-	err = waitGroup(command)
+	// The monitor owns job fields and file writes. A stop waits for publication
+	// before suspending all Go threads: waiter -> monitor -> ack -> SIGSTOP.
+	err = waitGroup(command, func(phase string) {
+		if sample == nil {
+			return
+		}
+		ready := make(chan struct{})
+		changes <- jobChange{phase, ready}
+		<-ready
+	})
 	control.mu.Lock()
 	control.child = nil
 	control.mu.Unlock()
@@ -319,10 +335,11 @@ func stateRoot() (string, error) {
 	return paths.StateDir, err
 }
 
-func monitor(store *store, job *jobRecord, command *exec.Cmd, done <-chan struct{}, out io.Writer) {
+func monitor(store *store, job *jobRecord, command *exec.Cmd, done <-chan struct{}, changes <-chan jobChange, out io.Writer) {
 	ticker := time.NewTicker(sampleInterval)
 	defer ticker.Stop()
 	var reported bool
+	var ready chan struct{}
 	for {
 		rss, err := treeRSS(job.PID)
 		if err == nil {
@@ -339,7 +356,13 @@ func monitor(store *store, job *jobRecord, command *exec.Cmd, done <-chan struct
 			fmt.Fprintln(out, "baton: running record:", err)
 			reported = true
 		}
+		if ready != nil {
+			close(ready)
+			ready = nil
+		}
 		select {
+		case change := <-changes:
+			job.Phase, ready = change.phase, change.ready
 		case <-done:
 			// Wait has completed before done closes; include kernel root peak
 			// so short-lived commands can still contribute a memory estimate.

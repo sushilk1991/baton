@@ -265,7 +265,7 @@ func TestJobControlTTYLoss(t *testing.T) {
 		close(expired)
 	})
 	defer timer.Stop()
-	err = waitGroup(command)
+	err = waitGroup(command, func(string) {})
 	select {
 	case <-expired:
 		t.Fatalf("terminal failure stranded the stopped child: %v", err)

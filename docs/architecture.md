@@ -264,7 +264,7 @@ never take the terminal. Pipe/file descriptors pass through directly.
 Windows creates a process group but console interruption currently kills
 only the command, best effort. Native Windows signal behavior is unverified.
 
-For an initially foreground terminal, `waitid` observes stops and exits
+For a controlling terminal, `waitid` observes stops and exits
 without consuming the exit status (`WNOWAIT`). Stop notifications are
 consumed separately; `Cmd.Wait` still owns exit status, rusage, and pipe
 cleanup. On a child stop, baton stops the whole child group, returns the
@@ -297,6 +297,27 @@ with line editing disabled. They repeat stop/resume on one child, deliver
 Ctrl-C to its trap, check exit 23 and history, admit the next one-slot job,
 and verify failed exec. A driver test covers terminal loss. These tests
 isolate HOME/XDG paths and signal only their own processes.
+
+Background tty callers retain the terminal descriptor without setting the
+fork driver's `Foreground` flag. A child's terminal read or `stty` can then
+stop its group without taking the terminal from the interactive shell.
+The same stop/continue protocol suspends baton, so `jobs` reports the stop
+and `fg` transfers the terminal before the child continues. Pipe/file input
+uses a sentinel descriptor and ordinary `Cmd.Wait`.
+
+```text
+background child -> tty access -> child stops -> metadata ack -> baton stops
+fg -> baton owns tty -> child owns tty -> child continues -> exit -> release
+```
+
+The monitor remains the only writer of job metadata. The waiter sends phase
+changes over a channel and waits for acknowledgement after publication,
+before suspending Go's threads. This prevents RSS sampling from overwriting
+the stopped phase or racing a second writer. `status` keeps stopped jobs in
+the JSON `running` array with `phase: stopped`; text output adds a STATE
+column. Slots stay reserved. Paired PTY tests compare the bare and wrapped
+`sh -c 'stty -echo; read x; echo GOT=$x' &` through stop, `fg`, input, exit 0,
+and the next job acquiring the released slot.
 
 Exit codes pass through. Unix signal exits use `128 + signal`; lookup
 failure returns 127, other launch failure 126, and invalid arguments 2.

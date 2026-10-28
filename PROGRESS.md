@@ -1,5 +1,39 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 2 (2026-10-28)
+
+Shipped locally: background tty jobs; that queue item is checked off.
+Background callers retain their tty descriptor for stop/resume
+without taking the terminal at startup. The waiter publishes stopped/running
+transitions through the existing monitor, with acknowledgement before
+suspension. Status retains stopped jobs and displays their state. Architecture
+docs record terminal ownership, metadata synchronization, and slot retention.
+
+Verified: native make check and the Linux copy-in Docker make check exited 0,
+including vet, race tests, and all five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Before production edits, PTY tests
+failed on macOS and Linux: bare sh stopped, while baton remained running.
+The stopped-status unit test also failed. The final fixture rejects the
+committed baseline through a Go overlay. Three native targeted race runs
+passed, including prior foreground job control, signals, and terminal loss.
+Real PTYs exercise Bash on both OSes and zsh on macOS: the shell reports the
+stop, public JSON/text status shows stopped with jc used=1, fg delivers hello,
+the child prints GOT=hello and exits 0, and the next job acquires the slot.
+All checks isolate HOME, USERPROFILE, XDG paths, TMPDIR, and Go writes. Cleanup
+signals only owned process groups after checking their kernel birth tokens.
+
+Evidence: .yoyo/re-review-background-{red-native,red-linux,red-refined,
+targeted,native,linux,lint}.log and .yoyo/re-review-background-report.md.
+The first lint launch lacked its configured TMPDIR and failed before analysis;
+mounting a private tmpfs there allowed the unchanged lint checks to pass.
+
+Pending: nine second-pass items, starting with nested runs across lanes.
+Non-interactive parents, external child STOP/CONT, and bg/fg cycles remain
+the later job-control item. Windows runtime was not exercised. SPEC.md,
+remotes, tags, releases, and real agent settings are unchanged.
+
+Next: read .yoyo/loop-state.md, then write the cross-lane nested-run red test.
+
 ## Re-review fixes, second pass, iteration 1 (2026-10-28)
 
 Shipped locally: hook shell semantics only; the first second-pass item is
