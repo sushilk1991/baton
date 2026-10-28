@@ -37,8 +37,12 @@ type testTerminal struct {
 
 func TestJobControlPTY(t *testing.T) {
 	isolateHome(t)
+	// A fresh module cache exposes cleanup failures hidden by a warm cache.
+	t.Setenv("GOMODCACHE", filepath.Join(t.TempDir(), "modules"))
+
+	// Keep downloaded module directories writable for TempDir cleanup.
 	binary := filepath.Join(t.TempDir(), "baton")
-	build := exec.Command("go", "build", "-o", binary, "../../cmd/baton")
+	build := exec.Command("go", "build", "-modcacherw", "-o", binary, "../../cmd/baton")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build baton: %v\n%s", err, output)
 	}

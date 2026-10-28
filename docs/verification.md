@@ -3,11 +3,34 @@ The Final gate passes under TASKS.md's publication exception. Nothing was
 pushed, tagged, or published.
 
 Checked on 2026-10-28: Go 1.27.0, macOS 27.0.1 (26A434), darwin/arm64.
-The tested source revision was `26a6333ac3e4afd59654002ef4b05e0fad056263`.
-This iteration changes verification records only; SPEC.md, README.md, and
-production code are unchanged.
+Iteration 8 tested source revision `26a6333ac3e4afd59654002ef4b05e0fad056263`.
+That iteration changed verification records only; SPEC.md, README.md, and
+production code were unchanged.
 
-## Full gates
+## Completion-check recovery, iteration 9
+
+The caller's subsequent `make check` failed while removing the PTY test's
+temporary module cache. Downloaded module directories had mode 0555. The
+earlier gate's warm cache had hidden this cleanup failure.
+
+The PTY test now forces a cold private module cache. Before the fix, its
+captured run exited 1 after both Bash and zsh job-control flows passed,
+with `TempDir RemoveAll cleanup` reporting `permission denied`. Building
+the fixture CLI with `-modcacherw` keeps downloads removable. The same
+test now exits 0, including cleanup. Production code is unchanged.
+
+Fresh native and golang:1.27 Docker `make check` both exited 0: vet, race
+tests, and five cross-builds passed. Pinned golangci-lint v2.15.0 reported
+`0 issues.` and exited 0. All checks used private HOME/XDG/Go paths; the
+native gate cleared inherited GOFLAGS, GOPATH, and GOMODCACHE to exercise
+default module-cache resolution.
+
+Evidence under `.yoyo/`: `gate-recovery-{red-native,targeted,native,linux,lint}.log`,
+`gate-recovery-diagnosis.log`, and `gate-recovery-run.py`. README and stress
+results below remain iteration 8 evidence; neither was rerun for this
+test-only change. Public installation remains pending owner publication.
+
+## Iteration 8 full gates
 
 | Command | Result | Captured log under `.yoyo/` |
 | --- | --- | --- |

@@ -1,5 +1,30 @@
 # Progress
 
+## Completion-check recovery, iteration 9 (2026-10-28)
+
+Shipped locally: repaired the PTY test's temporary-module cleanup. The test
+now uses a cold private module cache and builds its CLI with `-modcacherw`.
+Production code, SPEC.md, and TASKS.md are unchanged. Every queue item was
+already checked; no additional item was checked off.
+
+Verified: the strengthened test failed before the build flag with a
+permission-denied TempDir cleanup error; the downloaded module directory
+had mode 0555. After the flag, Bash and zsh job-control flows and cleanup
+passed. Fresh native and golang:1.27 Docker make check exited 0, including
+vet, race tests, and five cross-builds. Native verification cleared inherited
+GOFLAGS, GOPATH, and GOMODCACHE to exercise default cache resolution under
+temporary HOME. Pinned golangci-lint v2.15.0 reported 0 issues and exited 0.
+All checks isolated HOME, USERPROFILE, XDG paths, and Go writes.
+
+Evidence: .yoyo/gate-recovery-{red-native,targeted,native,linux,lint}.log,
+.yoyo/gate-recovery-diagnosis.log, and .yoyo/gate-recovery-run.py.
+
+Pending: the three public installs still require owner publication, as
+recorded in docs/verification.md. README commands and stress were not rerun
+for this test-only change. No push, tag, release, or remote change occurred.
+
+Next: let the caller rerun its completion check.
+
 ## Final gate, iteration 8 (2026-10-28)
 
 Shipped locally: Final gate only; every TASKS.md item is checked off.
