@@ -1,7 +1,30 @@
-Not verified: native macOS make check has not passed on the final source;
-CLI deadline tests fail on the development host under load averages of
-450-760. Hosted CI is the remaining native check. Public installs await
-owner publication.
+Not verified: hosted CI, Windows runtime behaviour, and live agent loading.
+Hosted CI gates the v0.1.0 tag. Public installs await owner publication.
+
+## Third-review fixes, final gates (2026-10-29)
+
+Source: 68d5570. Linux passed on an instabox VM (Debian, Go 1.27.1,
+linux/amd64, 4 vCPU) holding a byte-identical copy of the source (231
+files, sha256 manifest compared), with private HOME, XDG, TMPDIR, and Go
+paths: make check (vet, race tests, cross-builds) exited 0; a following
+`go test -race -count=5 ./...` passed every package; pinned golangci-lint
+v2.15.0 reported 0 issues.
+
+Native macOS make check passed on c35adda (all 18 packages with -race,
+vet, five cross-builds) at load averages of 7-32; 68d5570 changes only a
+test's timing measurement, and internal/runner passed again natively.
+
+Each third-review fix has a test that failed before it and passes after:
+TestNestedHoldOtherLane, TestBackgroundTTYParentRead,
+TestJobControlSelfStop, TestHookWithoutHold, and
+TestBackgroundStartFailure (the last from a Codex review of the fixes).
+TestCatchesSignal checks the caught-signal mask on both platforms; Codex
+confirmed the darwin p_sigcatch offset (236 of 648 bytes) against the SDK
+for arm64 and amd64. Repeated Linux runs exposed two test races, fixed
+without changing assertions: the self-stop helper now waits for CONT, and
+the memory-gate test starts timing before arming its deadline.
+
+Windows code compiles (vet, test binaries, cross-build) but has not run.
 
 ## Completion-check recovery, final gates (2026-10-29)
 

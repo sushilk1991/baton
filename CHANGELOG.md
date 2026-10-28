@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.0 (2026-10-29)
 
 ### Scheduling and observation
 
@@ -22,6 +22,6 @@
 
 - Source installation, quick start, recipes, generated defaults, and a VHS
   demo tape; contribution, conduct, and security-reporting guidance.
-- Native and Linux process/race checks and five cgo-free cross-build targets.
-  Cross-builds do not establish Windows runtime behavior. Hosted CI results,
-  release distribution, stress benchmarks, and recorded demo remain pending.
+- Native macOS and Linux process/race checks and five cgo-free cross-build
+  targets; hosted CI gates the tag. The Claude Code hook is macOS/Linux
+  only. Stress benchmarks and the recorded demo remain pending.

@@ -1,5 +1,17 @@
 # Progress
 
+## Third-review fixes (2026-10-29)
+
+Shipped locally: fixes for all four third-review findings (cross-lane
+hold deadlock, tty after fg, Ctrl-Z in self-stopping programs, Windows
+hook), plus a failed background start that took the shell's tty, and two
+test races. TASKS.md has no open items.
+
+Verified: Linux make check, five repeated race runs, and pinned lint on
+68d5570; native macOS make check on c35adda. See docs/verification.md.
+
+Next: push main, wait for hosted CI on all five runners, then tag v0.1.0.
+
 ## Completion-check recovery, final gates (2026-10-29)
 
 Shipped locally: the iteration 12-14 recovery changes below, committed
