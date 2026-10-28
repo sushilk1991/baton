@@ -122,6 +122,19 @@ parent PID is dead) and older than `--older-than` (default 2h). Lists by
 default; `--yes` sends SIGTERM, then SIGKILL after a grace period. Never
 touches the user's interactive browser (no `--headless`, default profile).
 
+Amended 2026-10-28 after a safety review. A parent of PID 1 is not proof
+of an orphan: on macOS launchd is the parent of every app the user opens,
+and in a container PID 1 adopts live processes. A process is reapable only
+when, in addition to the age and user checks:
+(a) baton started it (a job record whose birth token matches) and the
+    recorded parent is dead; or
+(b) it is a headless browser (`--headless` in its arguments, or a
+    chrome-headless-shell binary), a Playwright/Puppeteer driver or
+    chrome-devtools-mcp, its parent is the system init (launchd, systemd or
+    init), and PID 1 is that system init (never inside a container).
+A browser without `--headless` is never reaped, whatever other flags it
+carries. ffmpeg and Remotion/HyperFrames renderers are reaped only under (a).
+
 ### 3.5 `baton gc`
 
 Configurable regenerable-intermediate patterns under configured roots

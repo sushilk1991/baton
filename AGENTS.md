@@ -3,6 +3,8 @@
 - `SPEC.md` is the goal and does not change. `TASKS.md` is the queue: one
   item per iteration, checked off only when its tests pass.
 - Verify with `make check`. Linux: `docker run --rm -v "$PWD":/src -w /src golang:1.27 make check`.
+- Lint must report 0 issues: `docker run --rm -v "$PWD":/src -w /src golangci/golangci-lint:v2.15.0 golangci-lint run ./...`
+  (`make check` skips lint when golangci-lint is not installed).
 - Tests never touch the real `$HOME`, `~/.claude`, `~/.codex`, `~/.agents`
   or the user's shell config: set `HOME` and every `XDG_*` to temp dirs.
 - Never kill processes you did not start in a test. `reap` tests spawn their
