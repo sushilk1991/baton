@@ -108,10 +108,12 @@ func detectAgent(override string, env []string) string {
 	if values["CLAUDECODE"] != "" {
 		return "claude-code"
 	}
-	for _, prefix := range []struct{ key, agent string }{{"CODEX_", "codex"}, {"CURSOR_", "cursor"}, {"GEMINI_", "gemini"}, {"AIDER_", "aider"}, {"OPENCODE_", "opencode"}, {"GOOSE_", "goose"}} {
+	// Only trailing-underscore markers match prefixes; GEMINI_CLI excludes
+	// credentials and configuration such as GEMINI_API_KEY or GEMINI_CLI_HOME.
+	for _, marker := range []struct{ key, agent string }{{"CODEX_", "codex"}, {"CURSOR_", "cursor"}, {"GEMINI_CLI", "gemini"}, {"AIDER_", "aider"}, {"OPENCODE_", "opencode"}, {"GOOSE_", "goose"}} {
 		for key := range values {
-			if strings.HasPrefix(key, prefix.key) {
-				return prefix.agent
+			if key == marker.key || strings.HasSuffix(marker.key, "_") && strings.HasPrefix(key, marker.key) {
+				return marker.agent
 			}
 		}
 	}

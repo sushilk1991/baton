@@ -316,6 +316,13 @@ Agent detection prefers `--agent`, then Claude Code, Codex, Cursor, Gemini,
 Aider, OpenCode, Goose, `TERM_PROGRAM`, and finally `terminal`. The nearest
 `.git` directory or worktree pointer identifies the repository root.
 
+Gemini detection requires the exact, nonempty `GEMINI_CLI` marker, matching
+the nonempty-marker policy used for Claude Code. Credentials and configuration
+such as `GEMINI_API_KEY`, `GEMINI_MODEL`, and `GEMINI_CLI_HOME` do not identify
+an agent. Google's [shell execution source](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/services/shellExecutionService.ts),
+checked on 2026-10-28, sets `GEMINI_CLI=1`. Agent precedence and the other
+agents' prefix rules remain unchanged; detection is cooperative metadata.
+
 The command signature is SHA-256 of JSON-encoded argv and cwd. This preserves
 argument boundaries and separates project builds. Plaintext argv is not
 persisted because arguments can contain credentials. RSS is sampled every

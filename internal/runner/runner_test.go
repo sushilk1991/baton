@@ -43,6 +43,31 @@ func TestIdentity(t *testing.T) {
 	}
 }
 
+func TestGeminiIdentity(t *testing.T) {
+	// Credentials and configuration do not identify a Gemini-launched shell.
+	for _, test := range []struct {
+		env            []string
+		override, want string
+	}{
+		{[]string{"GEMINI_API_KEY=x"}, "", "terminal"},
+		{[]string{"GEMINI_MODEL=fixture"}, "", "terminal"},
+		{[]string{"GEMINI_CLI_TRUST_WORKSPACE=true"}, "", "terminal"},
+		{[]string{"GEMINI_CLI_HOME=/tmp/fixture"}, "", "terminal"},
+		{[]string{"GEMINI_CLI="}, "", "terminal"},
+		{[]string{"GEMINI_CLI=1", "GEMINI_API_KEY=x"}, "", "gemini"},
+		{[]string{"GEMINI_API_KEY=x", "TERM_PROGRAM=tmux"}, "", "tmux"},
+		{[]string{"CODEX_TEST=1", "GEMINI_CLI=1"}, "", "codex"},
+		{[]string{"CURSOR_TRACE=1", "GEMINI_CLI=1"}, "", "cursor"},
+		{[]string{"GEMINI_CLI=1", "AIDER_TEST=1"}, "", "gemini"},
+		{[]string{"GEMINI_API_KEY=x", "AIDER_TEST=1"}, "", "aider"},
+		{[]string{"GEMINI_CLI=1"}, "explicit", "explicit"},
+	} {
+		if got := detectAgent(test.override, test.env); got != test.want {
+			t.Errorf("env %v override %q: agent %q, want %q", test.env, test.override, got, test.want)
+		}
+	}
+}
+
 func TestSignature(t *testing.T) {
 	isolateHome(t)
 	opts := options{args: []string{"tool", "a b", "c"}}

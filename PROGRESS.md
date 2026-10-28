@@ -1,5 +1,32 @@
 # Progress
 
+## Review fixes, iteration 7 (2026-10-28)
+
+Shipped locally: Agent label only; the seventh review item is checked off.
+Gemini detection requires the exact, nonempty GEMINI_CLI key. API credentials
+and Gemini configuration no longer label terminal jobs as Gemini. Agent
+precedence, explicit overrides, and the other agents' prefix rules remain.
+docs/architecture.md records the marker policy and checked Google source.
+
+Verified: native make check and golang:1.27 Docker make check exited 0,
+including vet, race tests, and all five cross-builds. Pinned
+golangci/golangci-lint:v2.15.0 reported 0 issues and exited 0. Before the
+production edit, unit and CLI-history regressions failed on API-key and
+configuration false positives; .yoyo/review-agent-red-native.log records
+exit 1. The same targeted race tests now pass. The built native CLI records
+GEMINI_API_KEY=x baton run -- true as agent=terminal, ignores GEMINI_CLI_HOME,
+and recognizes GEMINI_CLI=1 as agent=gemini. All runs and public history
+queries exited 0. All checks isolated HOME, USERPROFILE, every XDG key, and
+Go paths. Evidence: .yoyo/review-agent-{native,linux,lint,targeted,cli}.log;
+report: .yoyo/review-agent-report.md.
+
+Pending: Final gate, including fresh README command verification. A live
+Gemini session and native Windows runtime were not exercised. No push,
+publication, remote change, or real agent configuration write occurred.
+SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md, then complete only the Final gate item.
+
 ## Review fixes, iteration 6 (2026-10-28)
 
 Shipped locally: Job control only; the sixth review item is checked off.
