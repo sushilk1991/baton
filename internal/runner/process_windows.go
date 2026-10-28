@@ -22,6 +22,8 @@ func terminateSignal() os.Signal           { return os.Interrupt }
 func signalCode(os.Signal) int             { return interruptExit }
 func childCode(state *os.ProcessState) int { return state.ExitCode() }
 
+func waitGroup(command *exec.Cmd) error { return command.Wait() }
+
 func signalGroup(command *exec.Cmd, _ os.Signal) error {
 	// Windows console delivery is best effort; terminate the owned command
 	// when no Unix process-group signal primitive exists.

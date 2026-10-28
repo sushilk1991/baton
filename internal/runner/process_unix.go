@@ -28,16 +28,29 @@ func prepareGroup(command *exec.Cmd, input io.Reader) func() error {
 	command.SysProcAttr.Foreground = true
 	command.SysProcAttr.Ctty = int(file.Fd())
 	return func() error {
-		// baton is now in the background. Ignore SIGTTOU while restoring its
-		// caller's foreground group, then restore the original disposition.
-		ignored := signal.Ignored(syscall.SIGTTOU)
-		signal.Ignore(syscall.SIGTTOU)
-		err := terminalGroup(file.Fd(), syscall.TIOCSPGRP, &previous)
-		if !ignored {
-			signal.Reset(syscall.SIGTTOU)
+		// Restore only a terminal still owned by this child. A shell that ran
+		// bg already owns its terminal and must not have it taken back.
+		var current int32
+		if err := terminalGroup(file.Fd(), syscall.TIOCGPGRP, &current); err != nil {
+			return err
 		}
-		return err
+		if command.Process != nil && int(current) != command.Process.Pid {
+			return nil
+		}
+		return foregroundGroup(file.Fd(), previous)
 	}
+}
+
+func foregroundGroup(fd uintptr, group int32) error {
+	// The supervisor can be in the background during a terminal handoff.
+	// Ignore SIGTTOU for that ioctl, then restore its original disposition.
+	ignored := signal.Ignored(syscall.SIGTTOU)
+	signal.Ignore(syscall.SIGTTOU)
+	err := terminalGroup(fd, syscall.TIOCSPGRP, &group)
+	if !ignored {
+		signal.Reset(syscall.SIGTTOU)
+	}
+	return err
 }
 
 func terminalGroup(fd, request uintptr, group *int32) error {

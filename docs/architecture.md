@@ -264,6 +264,40 @@ never take the terminal. Pipe/file descriptors pass through directly.
 Windows creates a process group but console interruption currently kills
 only the command, best effort. Native Windows signal behavior is unverified.
 
+For an initially foreground terminal, `waitid` observes stops and exits
+without consuming the exit status (`WNOWAIT`). Stop notifications are
+consumed separately; `Cmd.Wait` still owns exit status, rusage, and pipe
+cleanup. On a child stop, baton stops the whole child group, returns the
+terminal to its own group if the child still owns it, and stops itself with
+SIGSTOP. The shell can then reclaim the terminal. Stopped jobs retain their
+lane slots: their processes and allocations still exist.
+
+```text
+Ctrl-Z -> child group stops -> baton stops -> shell owns terminal
+fg -> shell resumes baton -> child owns terminal -> child group resumes
+exit -> Cmd.Wait -> history -> slot released
+```
+
+Baton waits for SIGCONT after sending itself SIGSTOP. On Linux, the signal
+syscall can return before every Go runtime thread has stopped; continuing
+the child immediately would resume it before the shell regains control.
+On `fg`, baton transfers the terminal before sending SIGCONT to the child.
+On `bg`, it leaves the terminal with its current owner. Completion restores
+only a terminal still owned by the child; failed exec also restores it.
+A failed terminal handoff resumes the child before waiting, so pending
+HUP/TERM or ordinary completion can finish it.
+
+The private driver uses the common three-int `siginfo_t` prefix and a
+128-byte buffer, sufficient for Darwin/Linux on amd64/arm64. No cgo or
+dependency is added. References: [Linux waitid](https://www.man7.org/linux/man-pages/man2/waitpid.2.html),
+[Darwin wait options](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/wait.h),
+and [Darwin siginfo_t](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/signal.h).
+PTY tests run the built CLI through Bash on macOS/Linux and zsh on macOS
+with line editing disabled. They repeat stop/resume on one child, deliver
+Ctrl-C to its trap, check exit 23 and history, admit the next one-slot job,
+and verify failed exec. A driver test covers terminal loss. These tests
+isolate HOME/XDG paths and signal only their own processes.
+
 Exit codes pass through. Unix signal exits use `128 + signal`; lookup
 failure returns 127, other launch failure 126, and invalid arguments 2.
 Ordinary waiting notices appear only on blocked retries, at most once every

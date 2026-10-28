@@ -1,5 +1,47 @@
 # Progress
 
+## Review fixes, iteration 6 (2026-10-28)
+
+Shipped locally: Job control only; the sixth review item is checked off.
+The Unix runner observes child stops without reaping exit status, stops its
+owned child group and itself, and returns terminal control through the shell.
+After fg, it hands the terminal to the child before continuing that group.
+Stopped jobs retain lane slots. Completion and failed exec restore terminal
+ownership; terminal-handoff failure resumes the child before waiting.
+
+Verified: native make check and golang:1.27 Docker make check exited 0,
+including vet, race tests, and all five cross-builds. Pinned
+golangci/golangci-lint:v2.15.0 reported 0 issues and exited 0. Five targeted
+race runs passed on each OS. Real PTYs run the built CLI through Bash on
+macOS/Linux and zsh on macOS with line editing disabled. Each child stops
+and resumes twice, reads after fg, traps Ctrl-C, and returns exit 23. The
+shell regains input, stopped capacity stays occupied, a subsequent one-slot
+job runs, history records completion, and failed exec returns 127. A driver
+regression verifies ENOTTY recovery without stranding a stopped child.
+All checks isolate HOME, USERPROFILE, every XDG key, and Go paths; only owned
+children were signaled.
+
+Red evidence: .yoyo/review-job-control-red-{native,linux}.log records the
+original Ctrl-Z hang before production edits. The synchronized PTY test also
+fails against the committed baseline through a Go source overlay in
+review-job-control-red-refined.log. An intermediate Linux attempt resumed
+the child before the supervisor had actually stopped; the captured exchange
+is review-job-control-resume-red-linux.log. Waiting for SIGCONT fixes that
+race. review-job-control-tty-red.log records the stopped child stranded by
+a terminal error before the recovery fix. Early fixture failures involved
+prompt/input timing, querying a terminal outside its controlling session,
+and zsh line editing; the final fixture waits for shell and child markers.
+Final logs: review-job-control-{native,linux,lint,targeted,targeted-linux}.log.
+Full evidence and limits: .yoyo/review-job-control-report.md.
+
+Pending: Agent label and Final gate. Other shells, full-screen terminal
+applications, native Windows runtime, and bg behavior were not exercised.
+The architecture records the stop/continue protocol and slot-retention
+choice. SPEC.md, remotes, real agent configuration, tags, and releases are
+unchanged. No push or publication.
+
+Next: read .yoyo/loop-state.md, then add the Agent label red regression.
+
 ## Review fixes, iteration 5 (2026-10-28)
 
 Shipped locally: Hook classification only; the fifth review item is checked

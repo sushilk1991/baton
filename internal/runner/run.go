@@ -257,7 +257,7 @@ func execute(ctx context.Context, control *supervisor, args, env []string, ioSet
 	} else {
 		close(monitored)
 	}
-	err = command.Wait()
+	err = waitGroup(command)
 	control.mu.Lock()
 	control.child = nil
 	control.mu.Unlock()
