@@ -264,39 +264,62 @@ never take the terminal. Pipe/file descriptors pass through directly.
 Windows creates a process group but console interruption currently kills
 only the command, best effort. Native Windows signal behavior is unverified.
 
-For a controlling terminal, `waitid` observes stops and exits
-without consuming the exit status (`WNOWAIT`). Stop notifications are
-consumed separately; `Cmd.Wait` still owns exit status, rusage, and pipe
-cleanup. On a child stop, baton stops the whole child group, returns the
-terminal to its own group if the child still owns it, and stops itself with
-SIGSTOP. The shell can then reclaim the terminal. Stopped jobs retain their
-lane slots: their processes and allocations still exist.
+For a controlling terminal, `waitid` observes stops, continuations, and exits
+without consuming exit status (`WNOWAIT`). Stop/continue notifications are
+consumed separately; `Cmd.Wait` retains exit status, rusage, and pipe cleanup.
+SIGCHLD wakes the waiter, which checks with `WNOHANG` to avoid blocking tty
+handoffs. Signals are subscribed before the first check to avoid lost wakes.
+
+A terminal stop (SIGTSTP, SIGTTIN, SIGTTOU) stops the whole child group,
+returns the tty to baton's group if the child owns it, and sends SIGSTOP to
+baton's entire process group. This also stops a non-interactive sh, make,
+or npm parent waiting in that shell job. One Ctrl-Z then returns the prompt.
+An outside SIGSTOP of the child updates stopped status but leaves baton
+waiting and runnable; an outside SIGCONT updates running status. Stopped
+jobs retain their slots because their processes and allocations still exist.
 
 ```text
-Ctrl-Z -> child group stops -> baton stops -> shell owns terminal
-fg -> shell resumes baton -> child owns terminal -> child group resumes
+Ctrl-Z -> child group stops -> baton + parent group stop -> shell owns tty
+fg -> caller group resumes -> child owns tty -> child group resumes
+outside STOP/CONT -> child state changes -> baton keeps waiting
 exit -> Cmd.Wait -> history -> slot released
 ```
 
-Baton waits for SIGCONT after sending itself SIGSTOP. On Linux, the signal
-syscall can return before every Go runtime thread has stopped; continuing
-the child immediately would resume it before the shell regains control.
-On `fg`, baton transfers the terminal before sending SIGCONT to the child.
-On `bg`, it leaves the terminal with its current owner. Completion restores
-only a terminal still owned by the child; failed exec also restores it.
-A failed terminal handoff resumes the child before waiting, so pending
-HUP/TERM or ordinary completion can finish it.
+Each suspension uses a fresh SIGCONT subscription. On Linux, the stop
+syscall can return before every Go runtime thread stops; baton awaits that
+subscription before continuing the child. A prior continuation cannot
+satisfy the next suspension. On fg, baton transfers the tty before resuming
+the child. On bg, it leaves the tty with the interactive shell.
 
-The private driver uses the common three-int `siginfo_t` prefix and a
-128-byte buffer, sufficient for Darwin/Linux on amd64/arm64. No cgo or
-dependency is added. References: [Linux waitid](https://www.man7.org/linux/man-pages/man2/waitpid.2.html),
+A shell can foreground an already-running background job without SIGCONT.
+The waiter also checks tty ownership every 20 ms; if baton's group now owns
+the tty, it hands it to the child before continuing that group. A poll with
+the tty still owned by the child or interactive shell sends no signal, so
+an externally stopped child remains stopped. SIGCONT stays subscribed for
+the job's lifetime. See Bash's [start_job implementation](https://github.com/apple-oss-distributions/bash/blob/main/bash-3.2/jobs.c):
+it gives a foreground job the terminal, then sends SIGCONT only if the job
+was stopped (checked 2026-10-28).
+
+Completion restores only a tty still owned by the child; failed exec also
+restores it. A failed tty handoff resumes the child before waiting, so
+pending HUP/TERM or ordinary completion can finish it.
+
+The private siginfo_t buffer is 128 bytes. Its common three-int header is
+followed by child PID, UID, and stop status, with four bytes of alignment
+padding on Linux amd64/arm64 and none on Darwin. No cgo or dependency is
+added. References: [Linux waitid](https://www.man7.org/linux/man-pages/man2/waitpid.2.html),
+[Linux siginfo_t](https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/siginfo.h),
 [Darwin wait options](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/wait.h),
 and [Darwin siginfo_t](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/signal.h).
 PTY tests run the built CLI through Bash on macOS/Linux and zsh on macOS
 with line editing disabled. They repeat stop/resume on one child, deliver
 Ctrl-C to its trap, check exit 23 and history, admit the next one-slot job,
-and verify failed exec. A driver test covers terminal loss. These tests
-isolate HOME/XDG paths and signal only their own processes.
+and verify failed exec. Paired bare/queued commands also cover a waiting
+non-interactive parent, outside child STOP/CONT, and Ctrl-Z -> bg -> fg ->
+Ctrl-Z, checking kernel child state, tty ownership, public stopped status,
+exit 23, and next-job admission. A driver test covers terminal loss after a
+terminal stop; SIGSTOP is deliberately excluded from shell suspension.
+These tests isolate HOME/XDG paths and signal only their own processes.
 
 Background tty callers retain the terminal descriptor without setting the
 fork driver's `Foreground` flag. A child's terminal read or `stty` can then

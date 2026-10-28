@@ -1,5 +1,47 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 4 (2026-10-28)
+
+Shipped locally: job control under any parent; only that queue item is checked.
+Terminal stops suspend the caller's whole shell job, including a waiting
+non-interactive parent. Outside child STOP/CONT leaves baton runnable.
+A 20 ms tty ownership check handles fg of an already-running background job
+when the shell sends no CONT. Each suspension has a fresh CONT subscription;
+stop/continue metadata still passes through the single monitor. Architecture
+notes record the process-group and tty decisions.
+
+Verified: native make check and the Linux copy-in make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Saved native/Linux red runs precede
+production edits: every bare control passes and all three queued scenarios
+fail. Three targeted race runs passed on both platforms before the final
+consumed-transition safeguard; both full gates cover the final source.
+Real Bash/zsh PTYs on macOS and Bash PTYs on Linux verify one Ctrl-Z below
+sh -c, outside STOP/CONT, Ctrl-Z -> bg -> fg -> Ctrl-Z, kernel child states,
+tty ownership, public stopped status, exit 23, history, and slot release.
+Checks isolate HOME, USERPROFILE, XDG paths, TMPDIR, and Go writes; cleanup
+signals only owned process groups with birth checks.
+
+The first native gate failed in unchanged TestShimFlow with an RSS sampling
+warning (signal: killed). That test passed five isolated race runs, then the
+full native gate passed. The sampler's one-second ps deadline is a possible
+contributor; the captured error does not prove the cause. No sampler,
+assertion, timeout, or gate was changed. The terminal-loss fixture now uses
+TSTP because outside STOP deliberately does not trigger a tty handoff; its
+ENOTTY, no-stranding, and exit assertions are unchanged.
+
+Evidence: .yoyo/re-review-parent-control-{red-native,red-linux,targeted,
+targeted-linux,native,linux,lint,shim-native}.log and the report/diagnosis.
+The first native failure is retained in -native-first.log. Earlier fixture
+and first-fix diagnostic logs are also retained.
+
+Pending: seven second-pass items, starting with hand-removed integration.
+Other target runtimes and public installation commands were not exercised
+for this item. No push, tag, release, remote change, or real agent settings
+write occurred. SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md, then write the hand-removed integration reds.
+
 ## Re-review fixes, second pass, iteration 3 (2026-10-28)
 
 Shipped locally: nested runs across lanes; only that queue item is checked.

@@ -244,7 +244,7 @@ func TestJobControlTTYLoss(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	command := exec.Command("/bin/sh", "-c", fmt.Sprintf("kill -STOP $$; exit %d", trapExitCode))
+	command := exec.Command("/bin/sh", "-c", fmt.Sprintf("kill -TSTP $$; exit %d", trapExitCode))
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := command.Start(); err != nil {
 		t.Fatal(err)
