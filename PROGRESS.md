@@ -40,6 +40,44 @@ exited 56. Neither full gate ran and no production code changed.
 Evidence: `.yoyo/iteration25-prerequisites.log`. Stop automatic retries until
 the caller resolves publication outside this task. Final gate stays open.
 
+Iteration 26 read the state and captured evidence. README.md says the release
+commands require publication; SPEC.md requires every README command to work;
+AGENTS.md forbids publication. No runtime or remote checks were repeated.
+Only this handoff and `.yoyo/loop-state.md` changed. The caller must stop the
+loop until publication is authorized and completed outside this task.
+
+Iteration 27 rechecked the publication prerequisites. `gh-axi release list`
+returned `count: 0` and `releases: []`; `git ls-remote --heads --tags`
+returned no refs. The README installer URL returned HTTP 404, curl exit 56.
+Neither full gate ran. No code or queue changes; Final gate stays open.
+Evidence: `.yoyo/iteration27-prerequisites.log`. Stop automatic retries
+until the caller resolves publication outside this task.
+
+Iteration 28 checked whether publication had appeared. Release count is still
+zero, remote branch/tag refs are empty, and the installer returns HTTP 404
+(curl exit 56). Evidence: `.yoyo/iteration28-prerequisites.log`. No code or
+queue changes; neither full gate nor README installs were repeated. The
+caller must stop retries and resolve publication under separate authorization.
+
+Iteration 29 checked the installer prerequisite once: HTTP 404, curl exit 56.
+Evidence: `.yoyo/iteration29-prerequisite.log`. Publication remains forbidden;
+Final gate stays unchecked. Full gates, README installs, and stress were not
+rerun. No code change or task commit. Stop the loop until the caller resolves
+publication outside this task.
+
+Iteration 30 reran both full gates: native `make check` and the exact
+`golang:1.27` Docker check exited 0. Both passed vet, race tests, and five
+cgo-free cross-builds; lint was unavailable. README replay covered all nine
+shell blocks: 16/19 invocations passed and all 21 behavior assertions passed.
+The three public installs still failed: no Homebrew formula, installer HTTP
+404 (curl exit 56), and no Go version matching latest. The release query
+returned zero releases; the remote branch/tag query returned no refs.
+Evidence: `.yoyo/iteration30-{native,linux,readme,prerequisites}.log` and
+`.yoyo/iteration30-readme/manifest.json`. Tests and README commands used
+temporary HOME/XDG paths; Homebrew used a temporary prefix. No production
+code changed, no task completed, and no commit was made. Final gate stays
+unchecked. The caller must resolve publication outside this task.
+
 The prior stress task remains complete: native default runs printed PASS,
 including 211.773 seconds queued / 180.761 seconds sequential (1.172), overlap
 1/4/1, zero sampled swap growth, and zero observed kills. All samples were
