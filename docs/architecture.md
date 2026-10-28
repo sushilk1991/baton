@@ -278,6 +278,10 @@ A SIGSTOP also counts as a terminal stop when the child's group owns the
 tty and the child catches SIGTSTP: nano and mutt answer Ctrl-Z by
 stopping their group with SIGSTOP. Linux reads the caught-signal mask
 from /proc/<pid>/status; macOS reads p_sigcatch from kinfo_proc.
+baton cannot tell that stop from an outside `kill -STOP` of the same
+program, so an outside STOP of a foreground program that catches SIGTSTP
+(vim, nano, less) also suspends the job, and `fg` resumes it. Without
+this rule, Ctrl-Z in nano or mutt hung the terminal.
 Any other outside SIGSTOP of the child updates stopped status but leaves
 baton waiting and runnable; an outside SIGCONT updates running status. Stopped
 jobs retain their slots because their processes and allocations still exist.

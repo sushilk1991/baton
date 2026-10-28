@@ -33,6 +33,12 @@ func prepareGroup(command *exec.Cmd, input io.Reader) func() error {
 	// a read/SIGTTIN race. Piped stdin needs no terminal handoff.
 	command.SysProcAttr.Foreground = int(previous) == syscall.Getpgrp()
 	return func() error {
+		// A failed start took the tty only if it was a foreground start: the
+		// fork driver hands it over before exec. A background start never did.
+		if command.Process == nil && !command.SysProcAttr.Foreground {
+			return nil
+		}
+
 		// Restore only a terminal still owned by this child. A shell that ran
 		// bg already owns its terminal and must not have it taken back.
 		var current int32

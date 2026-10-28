@@ -113,8 +113,9 @@ func testBackgroundTTY(t *testing.T, binary, shell, mode string) {
 
 // After a background start and fg, the job that ran baton must get the
 // terminal back when the child exits, so its next read works.
-// shell -> fg -> job group -> baton hands tty to child -> child exits
-//                    ^------------- tty returns here ---------'
+//
+//	shell -> fg -> job group -> baton hands tty to child -> child exits
+//	               ^------------ tty returns here -------------------'
 func TestBackgroundTTYParentRead(t *testing.T) {
 	isolateHome(t)
 	t.Setenv("TMPDIR", t.TempDir())
@@ -190,6 +191,73 @@ func testBackgroundParent(t *testing.T, binary, shell, mode string) {
 	terminal.await(t, "AFTER=world")
 	terminal.await(t, shellPrompt)
 	t.Log("child read hello; its parent then read world from the same terminal")
+}
+
+// A background run whose executable is missing never took the terminal, so
+// it must leave the tty with the interactive shell when startup fails.
+func TestBackgroundStartFailure(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("GOMODCACHE", filepath.Join(t.TempDir(), "modules"))
+	binary := filepath.Join(t.TempDir(), "baton")
+	build := exec.Command("go", "build", "-modcacherw", "-o", binary, "../../cmd/baton")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build baton: %v\n%s", err, output)
+	}
+	for _, shell := range []string{"/bin/bash", "/bin/zsh"} {
+		if _, err := os.Stat(shell); os.IsNotExist(err) {
+			continue
+		}
+		t.Run(filepath.Base(shell), func(t *testing.T) {
+			testBackgroundStartFailure(t, binary, shell)
+		})
+	}
+}
+
+func testBackgroundStartFailure(t *testing.T, binary, shell string) {
+	t.Helper()
+	isolateHome(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("PS1", "baton-test> ")
+	t.Setenv("TERM", "dumb")
+	configRoot := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton")
+	if err := os.MkdirAll(configRoot, directoryMode); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configRoot, "config.toml"), []byte("[lanes.jc]\nslots = 1\nmemory_gate = false\n"), fileMode); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal := startJobShell(t, shell)
+	terminal.send(t, "printf '\\nshell-pid:%s\\n' $$\n")
+	shellPID := terminalPID(t, terminal, "shell-pid:")
+	terminal.await(t, shellPrompt)
+
+	// Leave the failed job unwaited: wait would make the shell reclaim the
+	// tty and hide a wrong handoff. Poll ownership until the job is gone.
+	missing := filepath.Join(t.TempDir(), "missing")
+	marker := filepath.Join(t.TempDir(), "finished")
+	terminal.send(t, "("+quoteJobArg(binary)+" run --lane jc -- "+quoteJobArg(missing)+"; echo $? > "+quoteJobArg(marker)+") &\n")
+	deadline := time.Now().Add(terminalTimeout)
+	var status []byte
+	for time.Now().Before(deadline) {
+		var foreground int32
+		if err := terminalGroup(terminal.master.Fd(), syscall.TIOCGPGRP, &foreground); err != nil {
+			t.Fatal(err)
+		}
+		if int(foreground) != shellPID {
+			t.Fatalf("failed background start moved the tty to group %d; shell is %d", foreground, shellPID)
+		}
+		if data, err := os.ReadFile(marker); err == nil && len(data) > 0 {
+			status = data
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if strings.TrimSpace(string(status)) != strconv.Itoa(exitNotFound) {
+		t.Fatalf("failed background start exit %q, want %d", status, exitNotFound)
+	}
+	t.Log("failed background start exited 127 and left the tty with the shell")
 }
 
 func terminalPrefix(t *testing.T, terminal *testTerminal, prefix string) string {
