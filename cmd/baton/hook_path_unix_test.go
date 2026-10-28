@@ -106,6 +106,20 @@ func TestHookUpgradePath(t *testing.T) {
 			if got, code := hookShell(t, "/bin/bash", t.TempDir(), wrapped); got != "path-ok" || code != exitOK {
 				t.Fatalf("upgraded command: exit %d, output %q", code, got)
 			}
+
+			// Shell exit precedes the detached keeper's final writes. The fixture
+			// must wait for that keeper before removing its temporary state.
+			root := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton")
+			jobs, err := filepath.Glob(filepath.Join(root, "jobs", "*.json"))
+			if err != nil || len(jobs) != 0 {
+				t.Errorf("shell fixture returned before keeper cleanup: %v (%v)", jobs, err)
+			}
+
+			history, err := os.ReadFile(filepath.Join(root, "history.jsonl"))
+			if err != nil || bytes.Count(history, []byte("\n")) != 1 {
+				t.Errorf("shell fixture returned before hold history: %s (%v)", history, err)
+			}
+
 			input = strings.Replace(input, `"ffmpeg"`, string(mustPathJSON(t, wrapped)), 1)
 			command = exec.Command("/bin/sh", "-c", hook)
 			command.Stdin = strings.NewReader(input)

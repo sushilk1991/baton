@@ -68,6 +68,16 @@ func TestRunWaitNotices(t *testing.T) {
 			if err := command.Start(); err != nil {
 				t.Fatal(err)
 			}
+			t.Cleanup(func() {
+				if command.ProcessState == nil {
+					_ = command.Process.Kill()
+					_ = command.Wait()
+				}
+			})
+
+			// Observe admission before timing the occupied-slot assertion.
+			// slow CLI startup -> live ticket -> held slot -> release
+			awaitQueuedRun(t, root, command.Process.Pid)
 			time.Sleep(400 * time.Millisecond)
 			if _, err := os.Stat(marker); !os.IsNotExist(err) {
 				t.Fatalf("job ran through occupied slot: %v", err)
@@ -81,6 +91,27 @@ func TestRunWaitNotices(t *testing.T) {
 				t.Fatalf("quiet %t, stderr %q", quiet, stderr.String())
 			}
 		})
+	}
+}
+
+func awaitQueuedRun(t *testing.T, root string, pid int) {
+	t.Helper()
+	// Startup time must not consume the interval that tests queue blocking.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for {
+		view, err := queue.Observe(ctx, root, "x", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(view.Waiting) == 1 && view.Waiting[0].PID == pid {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("run never queued behind occupied slot")
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 }
 

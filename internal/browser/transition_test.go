@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -14,6 +16,52 @@ import (
 
 	"github.com/sushilk1991/baton/internal/lockfile"
 )
+
+// Read-only observations must not make a new supervisor fail its startup.
+func TestStartWaitsForObserver(t *testing.T) {
+	isolate(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing-browser")
+	configDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton")
+	if err := os.MkdirAll(configDir, privateDir); err != nil {
+		t.Fatal(err)
+	}
+	settings := fmt.Sprintf("[browser]\nexecutable = %q\n", missing)
+	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(settings), privateFile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hold observe's temporary probe across supervisor startup. The missing
+	// executable stops the test after acquisition without launching a browser.
+	// observer holds lock -> supervisor waits -> probe ends -> discovery runs
+	probe, err := lockfile.Try(filepath.Join(root, "browser.lock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer probe.Close()
+	completed := make(chan error, 1)
+	go func() { completed <- serve(root, io.Discard) }()
+	select {
+	case err := <-completed:
+		t.Fatalf("startup failed during observation: %v", err)
+	case <-time.After(4 * pollTime):
+	}
+
+	// Once the observer releases its probe, startup must reach discovery.
+	if err := probe.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-completed:
+		if !errors.Is(err, os.ErrNotExist) || !strings.Contains(err.Error(), missing) {
+			t.Fatalf("startup did not reach configured discovery: %v", err)
+		}
+	case <-time.After(requestTimeout):
+		t.Fatal("startup did not continue after observation")
+	}
+	t.Log("startup waited for the observer, then reached configured discovery")
+}
 
 // A removed session is transitional until the supervisor releases its lock.
 func TestObserveDuringShutdown(t *testing.T) {

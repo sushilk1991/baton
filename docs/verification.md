@@ -1,6 +1,84 @@
-Not verified: the three public installation paths require owner publication.
-The second-pass Final gate passes under TASKS.md's publication exception.
-Nothing was pushed, tagged, or published.
+Not verified: native macOS make check has not passed on the final source;
+CLI deadline tests fail on the development host under load averages of
+450-760. Hosted CI is the remaining native check. Public installs await
+owner publication.
+
+## Completion-check recovery, final gates (2026-10-29)
+
+Linux passed on an instabox VM (Debian, Go 1.27.1, linux/amd64, 4 vCPU)
+holding a byte-identical copy of the final source (228 files, sha256
+manifest compared). HOME, XDG, TMPDIR, and Go paths were private. make
+check (vet, race tests, cross-builds) exited 0 in 2m20s; a following
+`go test -race -count=5 ./...` passed every package. Pinned golangci-lint
+v2.15.0 reported 0 issues.
+
+Two native macOS make check runs on the final source failed only in
+cmd/baton, each on a deadline. TestNestedInstalledRecipes missed its
+4-second limit (the npm ci recipe, then the whisper recipe).
+TestShimFlow received the once-per-job warning `RSS sampling unavailable:
+signal: killed` after /bin/ps exceeded its 1-second budget; the command
+still exited 0. Every other package passed. Host load averaged 450-760
+with syspolicyd near 130% CPU; the earlier nested diagnosis measured
+130-560 ms per ps sample. The serial native pass (`native-serial.log`)
+predates only the TestRunWaitNotices fixture change; production code is
+identical. Logs: `native-2302-failed.log`, `native-2359-nested-deadline.log`,
+`cli-package.log`.
+
+## Completion-check recovery, iterations 12-13
+
+Recovery remains uncommitted because the required full gates have not
+passed. Evidence below uses the `.yoyo/re-review-completion-` prefix.
+
+The caller's completion check failed in TestHookUpgradePath/PATH during
+TempDir removal: `directory not empty`. New assertions fail for all four
+invoked-path spellings before synchronization: a keeper job record remains
+and hold history does not exist. The fixtures now await record removal,
+which follows history writes and slot release. The exact original deletion
+interleaving was not traced; the exposed premature return permits that race.
+`red-native.log` retains the failures; `targeted.log` passes. Hook upgrade
+and installed-hook fixtures pass twenty repeats (`refutation-native.log`).
+
+A delayed self-stop reproduced the tty-loss fixture's early-continuation
+race. Observing the child stopped before invalidating its tty makes the
+same injected case pass, preserving ENOTTY and exit 23. Evidence is
+`tty-red.log`, `tty-green.log`, and twenty normal repeats in
+`tty-targeted.log`. Existing assertions and deadlines remain unchanged.
+
+A later full gate exposed browser recovery startup failure. An isolated
+CLI reproduction captured `browser.lock: file lock busy`
+(`browser-diagnosis.log`). Observation briefly owns that lock while checking
+stale metadata; a new supervisor previously attempted it only once. The
+new controlled probe test fails before the fix (`observer-red.log`) and
+passes after it (`observer-green.log`). Startup now retries within the
+existing 15-second budget, retaining exclusive lifetime ownership. The
+compiled CLI's SIGKILL recovery passes five repeats, confirming two browser
+launches and one replacement (`browser-targeted.log`).
+
+Full native verification still fails (`native-fourth.log`): nested recipes
+miss deadlines, one parent-PTY case times out awaiting AFTER, and the CLI
+suite reaches Go's ten-minute limit while building another fixture.
+The browser package passes. Unchanged runner and stress package suites pass
+separately (`runner-package.log`, `stress-package.log`). The earlier terminal
+diagnostic passes both bare and queued bash/zsh cases (`identity-diagnosis.log`),
+so it does not explain the earlier identity failures. Earlier failed gates
+remain in `native-first.log` through `native-third.log`; an interrupted gate
+has its own log. Host load above 600 and RSS sampling warnings are observed
+contributors to investigate, not established causes. No sampler, assertion,
+timeout, Makefile, or gate was changed to accommodate them.
+
+The earlier Linux copy-in gate failed unchanged pressure-process, browser
+proxy, and lane-concurrency deadlines (`linux-first.log`). A new Linux/lint
+pipeline remains in flight. A separate Docker health client timed out after
+ten seconds (`docker-health.log`). Pinned golangci-lint v2.15.0 previously
+reported 0 issues before the browser change; the final source still needs a
+new successful lint run. Its first dependency TLS failure and successful
+private-cache verification are retained separately.
+
+README replay is prepared in `re-review-completion-readme.py` but has not
+run. Earlier README and stress evidence keeps its original scope below.
+Hosted CI, Windows runtime, and live agent loading were not checked.
+Public installs remain pending owner publication under TASKS.md's exception.
+SPEC.md, README.md, and TASKS.md are unchanged.
 
 ## Second-pass final gate, iteration 11
 

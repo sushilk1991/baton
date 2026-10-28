@@ -1,5 +1,53 @@
 # Progress
 
+## Completion-check recovery, final gates (2026-10-29)
+
+Shipped locally: the iteration 12-14 recovery changes below, committed
+after the gates in docs/verification.md.
+
+Verified: Linux make check, five repeated race-test runs, and pinned lint
+pass on the final source in an instabox VM. Native macOS passes every
+package except deadline tests in cmd/baton on this overloaded host.
+
+Next: fix the third-review findings queued in TASKS.md, then push, wait
+for hosted CI on all five runners, and tag v0.1.0.
+
+## Completion-check recovery, iterations 12-13 (2026-10-28)
+
+Not verified: required full gates still fail or cannot finish. Recovery
+changes remain uncommitted; all TASKS.md items were already checked.
+
+Shipped locally: no recovery commit yet. Hook fixtures now await detached
+keeper completion; the tty-loss fixture observes its child stopped before
+invalidating the tty. Browser startup retries temporary observation locks
+within the existing startup timeout. Architecture records both decisions.
+
+Verified: all four hook upgrade cases failed before synchronization, then
+passed. Hook upgrade and installed-hook tests passed twenty repeats. The
+delayed tty-stop red/green and twenty normal repeats pass. An isolated
+browser recovery failure logged `browser.lock: file lock busy`. A new
+controlled observation-lock test failed before the startup fix and passed
+afterward; real CLI SIGKILL recovery then passed five repeats. Unchanged
+runner and stress package suites also passed in isolation.
+
+Verified: the latest native full gate passed internal/browser, but failed
+nested deadlines and one parent-PTY case; its CLI suite hit Go's ten-minute
+timeout while building a fixture. Earlier native gates failed different
+identity/timing assertions. Linux's earlier gate failed pressure, browser,
+and lane deadlines. All failures remain under .yoyo/re-review-completion-.
+Host load exceeded 600, but that does not establish the timeout causes.
+No existing assertion, timeout, sampler, Makefile, or gate was weakened.
+
+Pending: finish the current Linux/lint pipeline, then obtain passing native
+and Linux make check and pinned lint on the final source. The previous lint
+reported 0 issues before the browser change. A new Docker health client
+timed out after ten seconds. README replay is prepared but has not run;
+stress, hosted CI, Windows runtime, and live agent loading were not rerun.
+Public installs still require owner publication. SPEC.md, TASKS.md, and
+README.md are unchanged. No push, tag, publication, or remote change occurred.
+
+Next: read .yoyo/loop-state.md and inspect the in-flight Linux/lint result.
+
 ## Re-review fixes, second pass, iteration 11 (2026-10-28)
 
 Shipped locally: the second-pass final gate is checked; no queue items

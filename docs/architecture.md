@@ -939,6 +939,12 @@ scheduling still needs no daemon. A control lock serializes start/stop;
 a lifetime kernel lock enforces one supervisor per state directory.
 Observation never creates state or trusts a persisted PID for liveness.
 
+Observers briefly acquire the lifetime lock to validate stale ownership.
+A new supervisor retries that contention within the existing 15-second
+startup budget. Otherwise a status probe can make startup or crash recovery
+fail with `file lock busy` before a browser launches. The supervisor keeps
+the acquired lock through shutdown; no second supervisor can launch early.
+
 ```text
 start/stop -> control.lock -> supervisor -> browser.lock (held for lifetime)
                                   |
@@ -1122,6 +1128,12 @@ baton did not start that shell, so the reservation cannot establish reap
 provenance. Status and history label it `shell hold`. Its history describes
 the reservation lifetime with exit 0, not the workload's exit status or RSS;
 explicit runs and shims still record their actual child results.
+
+Hook test fixtures wait for the keeper's job record to disappear before
+removing private state. Shell exit alone does not finish the keeper's
+history writes; record removal follows those writes and slot release.
+TTY-loss fixtures observe the child stopped before invalidating its tty,
+so an early continuation cannot arrive before the fixture's self-stop.
 
 Hook classification reads literal command segments separated by unquoted
 shell operators. It skips assignments, `sudo`, `time`, `nice`, and `env`,

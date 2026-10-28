@@ -255,6 +255,10 @@ func TestJobControlTTYLoss(t *testing.T) {
 			_ = command.Wait()
 		}
 	})
+
+	// Establish the stopped-child precondition before invalidating its tty.
+	awaitProcessStop(t, command.Process.Pid)
+
 	// Model loss of the controlling tty after startup. A stopped child must
 	// still be resumed and reaped when the terminal handoff fails.
 	command.SysProcAttr.Foreground = true

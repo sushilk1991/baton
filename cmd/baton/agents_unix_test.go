@@ -103,6 +103,10 @@ func hookShell(t *testing.T, shell, dir, text string) (string, int) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	// Finish detached writes before the caller can remove its private state.
+	defer awaitHookExit(t)
+
 	command := exec.CommandContext(ctx, shell, "-c", text)
 	command.Dir = dir
 	command.WaitDelay = time.Second
@@ -118,6 +122,35 @@ func hookShell(t *testing.T, shell, dir, text string) (string, int) {
 		t.Fatal(err)
 	}
 	return string(output), exit.ExitCode()
+}
+
+func awaitHookExit(t *testing.T) {
+	t.Helper()
+	// A detached keeper writes history before removing its job record.
+	// shell exit -> keeper finish -> record removal -> safe TempDir cleanup
+	dir := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton", "jobs")
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		entries, err := os.ReadDir(dir)
+		if os.IsNotExist(err) {
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		pending := false
+		for _, entry := range entries {
+			if strings.HasSuffix(entry.Name(), ".json") {
+				pending = true
+				break
+			}
+		}
+		if !pending {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("hook keepers did not finish")
 }
 
 // A hold must retain capacity until its exact shell exits, even after SIGKILL.
@@ -281,6 +314,9 @@ func awaitHoldSlots(t *testing.T, used int) {
 // Run the installed hook command and its returned shell text using a real CLI.
 func TestInstalledHookFlow(t *testing.T) {
 	isolateHome(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	// Cleanup runs before TempDir removal, including on assertion failure.
+	t.Cleanup(func() { awaitHookExit(t) })
 	t.Setenv("SHELL", "/bin/sh")
 	binary := buildShimCLI(t)
 	home := os.Getenv("HOME")

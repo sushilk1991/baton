@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/sushilk1991/baton/internal/config"
-	"github.com/sushilk1991/baton/internal/lockfile"
 )
 
 const tokenBytes = 32
@@ -44,7 +43,11 @@ func serve(root string, diagnostics io.Writer) error {
 	if err := os.MkdirAll(root, privateDir); err != nil {
 		return err
 	}
-	lease, err := lockfile.Try(filepath.Join(root, "browser.lock"))
+	// Observers briefly hold the lifetime lock while checking stale ownership.
+	// Retry their probes within the startup budget instead of failing startup.
+	claim, cancelClaim := context.WithTimeout(context.Background(), startTimeout)
+	lease, err := acquire(claim, filepath.Join(root, "browser.lock"))
+	cancelClaim()
 	if err != nil {
 		return err
 	}
