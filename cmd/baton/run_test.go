@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,6 +70,6 @@ func waitCode(t *testing.T, command *exec.Cmd, want int) {
 		code = exit.ExitCode()
 	}
 	if code != want {
-		t.Fatal(fmt.Sprintf("exit %d, want %d (%v)", code, want, err))
+		t.Fatalf("exit %d, want %d (%v)", code, want, err)
 	}
 }

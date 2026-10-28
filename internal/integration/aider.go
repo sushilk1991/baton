@@ -53,7 +53,7 @@ func aiderRead(old []byte, path string) ([]byte, error) {
 	for n, line := range lines {
 		trim := strings.TrimSpace(line)
 		if trim == "---" || trim == "..." || strings.HasPrefix(line, "<<:") {
-			return nil, fmt.Errorf("Aider YAML documents/merge keys require manual read configuration")
+			return nil, fmt.Errorf("aider YAML documents/merge keys require manual read configuration")
 		}
 		if len(line) == 0 || line[0] == ' ' || line[0] == '\t' || strings.HasPrefix(trim, "#") {
 			continue
@@ -170,7 +170,7 @@ func aiderJSON(old []byte, path string) ([]byte, error) {
 		if err := json.Unmarshal(value, &paths); err != nil {
 			var single string
 			if err := json.Unmarshal(value, &single); err != nil {
-				return nil, fmt.Errorf("Aider read requires filenames")
+				return nil, fmt.Errorf("aider read requires filenames")
 			}
 			paths = []string{single}
 		}

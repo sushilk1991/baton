@@ -112,7 +112,7 @@ func TestShimBypassAndQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	// Fast paths must pass an occupied lane without history or job records.
 	for _, args := range [][]string{{"ffmpeg", "-version"}, {"ffmpeg", "-f", "null", "-"}, {"ffprobe", "movie.mp4"}} {
 		if got := shimCLI(t, filepath.Join(dir, args[0]), 0, args[1:]...); got != "executed" {

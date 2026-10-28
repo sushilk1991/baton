@@ -5,6 +5,11 @@ run:
 
 linters:
   default: standard
+  # Unchecked Close, Remove and Fprint* in cleanup paths are idiomatic;
+  # errcheck still flags every other ignored error.
+  exclusions:
+    presets:
+      - std-error-handling
 
 formatters:
   enable:

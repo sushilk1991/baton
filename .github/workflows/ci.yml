@@ -38,3 +38,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           go build -trimpath -o baton.exe ./cmd/baton
           exit $LASTEXITCODE
+
+  # make check skips lint when golangci-lint is missing, as on these runners,
+  # so lint runs here once with the version the repo is checked against.
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+          cache: false
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0

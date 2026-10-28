@@ -118,7 +118,7 @@ func runGateChild() error {
 	if err != nil {
 		return err
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	// Measure inside the waiter so parent scheduling cannot falsify timing.
 	if time.Since(started) < maxWait && provider.last != pressure.Normal {
 		return errors.New("pressure admission preceded max_wait")

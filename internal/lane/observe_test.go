@@ -18,7 +18,7 @@ func TestObserveCapacityDamage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	if err := os.WriteFile(filepath.Join(lane.dir, capacityFile), []byte("broken"), 0600); err != nil {
 		t.Fatal(err)
 	}

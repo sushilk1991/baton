@@ -153,7 +153,7 @@ func runChild() error {
 	if err != nil {
 		return err
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 
 	// The admitted job itself records order while owning the single slot.
 	file, err := os.OpenFile(filepath.Join(root, "order"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, fileMode)

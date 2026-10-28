@@ -134,7 +134,7 @@ func peekTickets(ctx context.Context, dir string, now time.Time) ([]Waiting, err
 	})
 	waiting := make([]Waiting, 0, len(entries))
 	for _, entry := range entries {
-		waiting = append(waiting, Waiting{entry.Sequence, entry.Created, entry.Priority, entry.Weight, entry.PID})
+		waiting = append(waiting, Waiting(entry))
 	}
 	return waiting, nil
 }

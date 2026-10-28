@@ -140,7 +140,9 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 		return control.waitCode(), err
 	}
 	if lease != nil {
-		defer lease.Release()
+		// The child's exit status is the result; a failed unlock cannot replace
+		// it, and the kernel drops the slot locks when baton exits anyway.
+		defer func() { _ = lease.Release() }()
 	}
 	job.Start = time.Now().UTC()
 	job.WaitNanos = job.Start.Sub(job.Queued).Nanoseconds()

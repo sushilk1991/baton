@@ -136,7 +136,7 @@ func discover(configured string) (string, error) {
 			return path, nil
 		}
 	}
-	return "", errors.New("Chrome, Chromium, Edge, or chrome-headless-shell not found; set browser.executable")
+	return "", errors.New("no Chrome, Chromium, Edge, or chrome-headless-shell found; set browser.executable")
 }
 
 func executableFile(path string) (string, error) {

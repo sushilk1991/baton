@@ -77,7 +77,7 @@ func TestStatusLiveAndStale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	now := time.Now().UTC()
 	running := jobRecord{ID: "running", Lane: "ad-hoc", Label: "build", Agent: "codex", Repo: "/repo", OwnerPID: os.Getpid(), PID: os.Getpid(), Phase: "running", Weight: 2, Start: now.Add(-time.Minute), RSSBytes: 4096}
 	owner, err := lockfile.Try(filepath.Join(root, "jobs", running.ID+".lock"))

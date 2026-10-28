@@ -105,22 +105,28 @@ func TestObserveLiveCLI(t *testing.T) {
 			Name        string
 			Used, Total int
 		}
-	} { var out, diagnostics bytes.Buffer; if code := run([]string{"status", "--json"}, &out, &diagnostics); code != exitOK {
-		t.Fatalf("status exit=%d stderr=%s", code, &diagnostics)
-	}; var value struct {
-		Running, Queue []struct {
-			Label, Agent, Lane string
-			Position           int
-			QueueSequence      uint64 `json:"queue_sequence"`
-			RSSBytes           uint64 `json:"rss_bytes"`
+	} {
+		var out, diagnostics bytes.Buffer
+		if code := run([]string{"status", "--json"}, &out, &diagnostics); code != exitOK {
+			t.Fatalf("status exit=%d stderr=%s", code, &diagnostics)
 		}
-		Lanes []struct {
-			Name        string
-			Used, Total int
+		var value struct {
+			Running, Queue []struct {
+				Label, Agent, Lane string
+				Position           int
+				QueueSequence      uint64 `json:"queue_sequence"`
+				RSSBytes           uint64 `json:"rss_bytes"`
+			}
+			Lanes []struct {
+				Name        string
+				Used, Total int
+			}
 		}
-	}; if err := json.Unmarshal(out.Bytes(), &value); err != nil {
-		t.Fatal(err)
-	}; return value }
+		if err := json.Unmarshal(out.Bytes(), &value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
 	launch("holder", "normal", "2")
 	deadline := time.Now().Add(10 * time.Second)
 	for {

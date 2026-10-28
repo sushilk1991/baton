@@ -114,7 +114,7 @@ func TestProbeFailureTimesOut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	if !strings.Contains(warning.String(), "WARNING") || !strings.Contains(warning.String(), "probe unavailable") {
 		t.Fatalf("missing timeout/probe warning: %q", warning.String())
 	}
@@ -150,7 +150,7 @@ func TestTimeoutKeepsSlots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer held.Release()
+	defer func() { _ = held.Release() }()
 	ticket, err := q.Enqueue(ctx, 1, queue.Normal)
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestTimeoutKeepsSlots(t *testing.T) {
 	if got.err != nil || got.lease == nil {
 		t.Fatalf("released slot not admitted: %+v", got)
 	}
-	defer got.lease.Release()
+	defer func() { _ = got.lease.Release() }()
 	if strings.Count(warnings.String(), "WARNING") != 1 {
 		t.Fatalf("timeout warning count: %q", warnings.String())
 	}
@@ -208,7 +208,7 @@ func TestWarningFailureReleases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed warning leaked a slot: %v", err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 }
 
 type failedWriter struct{}

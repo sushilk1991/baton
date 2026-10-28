@@ -164,7 +164,7 @@ func runHelper() error {
 	if err != nil {
 		return err
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	fmt.Println("acquired")
 	if mode != "job" {
 		if !input.Scan() {

@@ -55,7 +55,7 @@ func TestRunWaitNotices(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer lease.Release()
+			defer func() { _ = lease.Release() }()
 			marker := filepath.Join(t.TempDir(), "ran")
 			args := []string{"run", "--lane", "x", "--max-wait", "10ms"}
 			if quiet {
@@ -184,7 +184,7 @@ func TestRunWaitCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	marker := filepath.Join(t.TempDir(), "unexpected")
 	command := cliCommand(t, "run", "--lane", "x", "--", "/bin/sh", "-c", `printf ran > "$1"`, "sh", marker)
 	if err := command.Start(); err != nil {
@@ -210,7 +210,9 @@ func TestRunWaitCancellation(t *testing.T) {
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatalf("canceled job executed: %v", err)
 	}
-	lease.Release()
+	if err := lease.Release(); err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	next, err := q.Enqueue(ctx, 1, queue.Normal)
@@ -221,7 +223,9 @@ func TestRunWaitCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cancellation stranded queue: %v", err)
 	}
-	acquired.Release()
+	if err := acquired.Release(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRunSignalExit(t *testing.T) {

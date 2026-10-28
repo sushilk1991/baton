@@ -24,7 +24,7 @@ func TestObserve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer lease.Release()
+	defer func() { _ = lease.Release() }()
 	normal := enqueue(t, q, 1, Normal)
 	defer normal.Close()
 	high := enqueue(t, q, 1, High)
