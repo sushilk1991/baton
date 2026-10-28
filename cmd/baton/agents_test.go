@@ -125,7 +125,7 @@ func TestInitPreservesEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = append(data, []byte("user edits\n")...)
+	data = bytes.Replace(data, []byte("Queue heavy commands"), []byte("User-edited commands"), 1)
 	if err := os.WriteFile(name, data, 0600); err != nil {
 		t.Fatal(err)
 	}

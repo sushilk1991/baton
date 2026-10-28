@@ -914,12 +914,27 @@ MCP stdout <- text content / isError <- snapshot or candidate listing
 The manifest records original and installed bytes, modes, links, and created
 directories. Publication uses synced temporary files and atomic rename.
 The management kernel lock serializes baton writers; its inode is retained.
-Before every operation, originals or installed bytes must still match.
-A crash between journal publication and a target write leaves a recoverable
-before/after state. Uninstall journals its direction before restoring leaves
-and removing empty parents. User edits cause a nonzero exit before any
-restoration, retaining the journal for a later retry. Originals may include
-sensitive settings, so the manifest is private (0600). No secrets are printed.
+Before every operation, originals or installed bytes must still match, or
+the recorded owned edit must remain unchanged within the current file.
+Instruction blocks match between their markers, independent of surrounding
+text. Recorded separators are removed when still adjacent; otherwise current
+surroundings remain. Supported YAML edits use their unique recorded text span;
+JSON settings remove the single recorded array entry by value. Other
+current text, settings, hooks, and file modes survive. Duplicate or changed
+owned blocks/entries fail with the path before restoration starts. Aider YAML
+must still reproduce the current document when its supported edit is replayed;
+ambiguous read-field changes require manual resolution.
+
+Reconciliation updates both manifest snapshots in memory: current contents
+become the installed side, and removing only the owned edit produces the
+original side. Reinstall leaves current files byte-identical and saves these
+snapshots. Uninstall journals them and its direction before restoring leaves
+and removing empty parents. A crash between publication and a target write
+leaves a recoverable before/after state. Existing version-1 manifests need no
+migration; ownership is inferred from recorded contents, including resolved
+symlink targets. Unchanged files restore exact original bytes; edited JSON is
+reformatted with integer precision retained. Originals may include sensitive
+settings, so the manifest is private (0600). No secrets are printed.
 
 Existing instruction symlinks resolve within home/config roots and retain
 their links. Skill-parent aliases are resolved before checking for self-links.

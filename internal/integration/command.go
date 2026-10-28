@@ -135,6 +135,9 @@ func (i installer) manage(action operation, mode application, claude hookPolicy,
 	if err != nil {
 		return err
 	}
+	if err := i.reconcile(&journal); err != nil {
+		return err
+	}
 	if action == removeAgents {
 		return i.uninstall(journal, out)
 	}
@@ -167,6 +170,9 @@ func (i installer) manage(action operation, mode application, claude hookPolicy,
 func (i installer) preview(action operation, claude hookPolicy, out io.Writer) error {
 	journal, err := i.load()
 	if err != nil {
+		return err
+	}
+	if err := i.reconcile(&journal); err != nil {
 		return err
 	}
 	if err := i.validate(journal); err != nil {

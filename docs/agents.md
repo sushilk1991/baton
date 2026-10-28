@@ -49,17 +49,22 @@ records the complete plan before writing agent files and serializes its own
 management operations with a kernel lock. Reinstall resumes interrupted
 publication; uninstall resumes interrupted restoration.
 
-Modified files, modes, replaced parents, conflicting skills, and unowned
-markers fail with the offending path. Resolve that conflict before retrying;
-init does not discard later user edits. Uninstall removes only owned files,
-links, and empty created directories. New unrelated files remain. The
-management lock inode remains under baton data.
+Text outside baton's instruction block and unrelated settings or hook entries
+survive reinstall and uninstall. Reinstall leaves these files byte-identical.
+Uninstall removes only the unchanged recorded block or entry; edited JSON is
+reformatted. Current file modes survive. Changed or duplicated owned blocks,
+modified skills, replaced parents, and unowned markers fail with the offending
+path before restoration. Resolve that conflict before retrying. Aider YAML
+requires an unchanged, unambiguous recorded read-field edit. Uninstall removes
+only owned files, links, and empty created directories. New unrelated files
+remain. The management lock inode remains under baton data.
 
 ## Claude Code hook
 
 The opt-in Bash `PreToolUse` hook invokes the same absolute baton executable
 as `baton init _hook`. It merges into `settings.json`, preserves other hook
-entries, and restores the original settings bytes on uninstall.
+entries. Uninstall restores original bytes when settings are unchanged, or
+removes only baton's entry when unrelated settings have changed.
 
 For a matching heavy command it returns `updatedInput.command` containing
 an explicit-lane wrapper:

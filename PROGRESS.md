@@ -1,5 +1,43 @@
 # Progress
 
+## Review fixes, iteration 4 (2026-10-28)
+
+Shipped locally: Uninstall after user edits only; the fourth review item is
+checked off. Reinstall and uninstall reconcile the recorded owned edit with
+current contents. Text surrounding unchanged instruction blocks, unrelated
+JSON settings and hook entries, supported Aider settings, and current modes
+survive. Reinstall keeps edited files byte-identical. Edited or duplicated
+owned blocks/entries still fail before restoration and name the preserved
+path. Existing version-1 manifests and resolved instruction/settings links
+remain supported.
+
+Verified: native `make check`, `golang:1.27` Docker `make check`, and
+`golangci/golangci-lint:v2.15.0` exited 0; lint reported `0 issues.` Both
+full gates passed vet, race tests, and all five cross-builds. Compiled-CLI
+tests cover preview, repeated reinstall, later edits after reconciliation,
+and uninstall with user text above/below the block, existing/new user hooks,
+an unrelated 64-bit integer, and original modes. Direct regressions cover
+initially absent/existing files, text inserted directly above a marker,
+linked settings, and edited/duplicated owned content. HOME, USERPROFILE,
+every inherited XDG key, and Go paths were private throughout the checks.
+
+Red evidence: `.yoyo/review-init-edits-red-native.log` records the original
+settings-uninstall and instruction-reinstall failures. The initial Aider
+fixture also changed its temporary path; the corrected fixture failed
+against the committed installer via Go's source overlay, saved as
+`review-init-edits-aider-red.log`. Direct instruction uninstall against that
+installer is `review-init-edits-snippet-red.log`. Additional red regressions
+are `review-init-edits-{rebase,symlink,adjacent}-red.log`. Final green logs:
+`review-init-edits-{native,linux,lint,targeted}.log`. Full evidence and limits:
+`.yoyo/review-init-edits-report.md`.
+
+Pending: three review fixes and Final gate. Edited JSON is reformatted on
+removal; ambiguous Aider YAML read-field changes require manual resolution.
+Live agent sessions and Windows runtime were not exercised; Windows builds
+passed. Decisions are recorded in `docs/architecture.md`.
+
+Next: read `.yoyo/loop-state.md`, then add the Hook classification red tests.
+
 ## Review fixes, iteration 3 (2026-10-28)
 
 Shipped locally: Shim fallback only; the third review item is checked off.
