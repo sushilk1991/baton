@@ -111,6 +111,87 @@ func testBackgroundTTY(t *testing.T, binary, shell, mode string) {
 	t.Log("next job acquired the released slot; both history exits are 0")
 }
 
+// After a background start and fg, the job that ran baton must get the
+// terminal back when the child exits, so its next read works.
+// shell -> fg -> job group -> baton hands tty to child -> child exits
+//                    ^------------- tty returns here ---------'
+func TestBackgroundTTYParentRead(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("GOMODCACHE", filepath.Join(t.TempDir(), "modules"))
+	binary := filepath.Join(t.TempDir(), "baton")
+	build := exec.Command("go", "build", "-modcacherw", "-o", binary, "../../cmd/baton")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build baton: %v\n%s", err, output)
+	}
+	for _, shell := range []string{"/bin/bash", "/bin/zsh"} {
+		if _, err := os.Stat(shell); os.IsNotExist(err) {
+			continue
+		}
+		for _, mode := range []string{"bare", "baton"} {
+			t.Run(filepath.Base(shell)+"/"+mode, func(t *testing.T) {
+				testBackgroundParent(t, binary, shell, mode)
+			})
+		}
+	}
+}
+
+func testBackgroundParent(t *testing.T, binary, shell, mode string) {
+	t.Helper()
+	isolateHome(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("PS1", "baton-test> ")
+	t.Setenv("TERM", "dumb")
+	configRoot := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton")
+	if err := os.MkdirAll(configRoot, directoryMode); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configRoot, "config.toml"), []byte("[lanes.jc]\nslots = 1\nmemory_gate = false\n"), fileMode); err != nil {
+		t.Fatal(err)
+	}
+
+	// The parent script reads the tty itself after its child finishes.
+	inner := "/bin/sh -c " + quoteJobArg(backgroundRead)
+	if mode == "baton" {
+		inner = quoteJobArg(binary) + " run --lane jc -- " + inner
+	}
+	script := filepath.Join(t.TempDir(), "parent.sh")
+	body := inner + "\nread y\necho AFTER=$y\n"
+	if err := os.WriteFile(script, []byte(body), fileMode); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal := startJobShell(t, shell)
+	if filepath.Base(shell) == "bash" {
+		terminal.send(t, "set +H\n")
+		terminal.await(t, shellPrompt)
+	}
+	terminal.send(t, "/bin/sh "+quoteJobArg(script)+" & background_pid=$!; printf '\\nbackground-pid:%s\\n' \"$background_pid\"\n")
+	pid, err := strconv.Atoi(terminalPrefix(t, terminal, "background-pid:"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreground := pid
+	cleanOwnedGroup(t, pid)
+	if mode == "baton" {
+		foreground = terminalJob(t).PID
+		cleanOwnedGroup(t, foreground)
+	}
+	terminal.await(t, shellPrompt)
+	awaitBackgroundStop(t, terminal)
+
+	terminal.send(t, "fg\n")
+	awaitForeground(t, terminal, foreground)
+	terminal.send(t, "hello\n")
+	terminal.await(t, "GOT=hello")
+
+	// The parent, not the interactive shell, must receive the next line.
+	terminal.send(t, "world\n")
+	terminal.await(t, "AFTER=world")
+	terminal.await(t, shellPrompt)
+	t.Log("child read hello; its parent then read world from the same terminal")
+}
+
 func terminalPrefix(t *testing.T, terminal *testTerminal, prefix string) string {
 	t.Helper()
 	timer := time.NewTimer(terminalTimeout)

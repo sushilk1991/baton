@@ -42,7 +42,10 @@ func prepareGroup(command *exec.Cmd, input io.Reader) func() error {
 		if command.Process != nil && int(current) != command.Process.Pid {
 			return nil
 		}
-		return foregroundGroup(file.Fd(), previous)
+		// Return the tty to baton's own job group, which handed it to the
+		// child. After a background start, previous is the shell's group,
+		// and giving it the tty would stop the job's next read.
+		return foregroundGroup(file.Fd(), int32(syscall.Getpgrp()))
 	}
 }
 
