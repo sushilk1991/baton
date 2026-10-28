@@ -27,6 +27,7 @@ const (
 Usage: baton <command> [arguments]
 
 Commands:
+  hold    Reserve a lane until a calling shell exits
   run     Queue and execute a command
   config  Initialize, show, locate, or validate configuration
   status  Show running jobs, queues, slots, and memory
@@ -64,6 +65,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	if args[0] == "browser" {
 		return browser.Run(args[1:], stdout, stderr)
+	}
+	if args[0] == "hold" {
+		return runner.Hold(args[1:], stdout, stderr)
 	}
 	if args[0] == "run" {
 		return runner.Run(args[1:], os.Stdin, stdout, stderr)

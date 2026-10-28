@@ -13,7 +13,6 @@ import (
 
 const (
 	hookLimit = 1 << 20
-	hookShell = "/bin/sh"
 )
 
 func hook(in io.Reader, out, diagnostics io.Writer, policy hookPolicy) int {
@@ -74,12 +73,9 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 	if err != nil {
 		return err
 	}
-	// Preserve the user's interpreter, including paths containing shell quotes.
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = hookShell
-	}
-	wrapped := shellQuote(binary) + " run --lane " + shellQuote(lane) + " -- " + shellQuote(shell) + " -c " + shellQuote(command)
+	// Keep shell syntax at top level for Claude's shell and permission checks.
+	// shell -> hold (waits for capacity) -> original (same shell snapshot)
+	wrapped := shellQuote(binary) + " hold --lane " + shellQuote(lane) + " --pid $$ && " + command
 	if policy == withClaudeBlock {
 		return blockedCommand(wrapped)
 	}
@@ -102,8 +98,14 @@ func queuedCommand(words []string) bool {
 }
 
 func hookLane(command string, settings *config.Config) string {
+	// Recognize our exact prefix on repeated PreToolUse evaluation. The
+	// original remains separate shell syntax; no permission is granted here.
+	segments := shellSegments(command)
+	if len(segments) > 0 && holdPrefix(segments[0]) {
+		return ""
+	}
 	// An explicit reservation protects its segment, not later bare commands.
-	for _, segment := range shellSegments(command) {
+	for _, segment := range segments {
 		words := unwrapCommand(segment)
 		if queuedCommand(words) {
 			continue
@@ -113,4 +115,12 @@ func hookLane(command string, settings *config.Config) string {
 		}
 	}
 	return ""
+}
+
+func holdPrefix(words []string) bool {
+	if len(words) != 6 || words[1] != "hold" || words[2] != "--lane" || words[4] != "--pid" || words[5] != "$$" {
+		return false
+	}
+	binary, _ := os.Executable()
+	return words[0] == binary || filepath.Base(words[0]) == "baton"
 }

@@ -13,13 +13,14 @@ func inheritedLanes(ctx context.Context, store *store) (map[string]string, error
 	var inherited map[string]string
 	// A stale or malformed marker grants no reservation. Matching live owner
 	// locks also scope inheritance to the current state directory.
-	if json.Unmarshal([]byte(os.Getenv(lanesEnv)), &inherited) != nil || len(inherited) == 0 {
-		return lanes, nil
+	if json.Unmarshal([]byte(os.Getenv(lanesEnv)), &inherited) != nil {
+		inherited = nil
 	}
 	jobs, err := activeJobs(ctx, store.root)
 	if err != nil {
 		return nil, err
 	}
+	addHeldLanes(ctx, jobs, lanes)
 	for _, job := range jobs {
 		// A newly started child can arrive before its parent's RSS monitor
 		// replaces queued metadata. Only admitted children receive this ID.

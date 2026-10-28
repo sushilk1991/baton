@@ -170,7 +170,7 @@ func TestHook(t *testing.T) {
 				t.Fatal(err)
 			}
 			updated, _ := response.Output.Input["command"].(string)
-			if response.Output.Event != "PreToolUse" || response.Output.Decision == "allow" || !strings.Contains(updated, "run --lane") || !strings.Contains(updated, " '/bin/sh' -c ") || response.Output.Input["timeout"] != float64(123) {
+			if response.Output.Event != "PreToolUse" || response.Output.Decision == "allow" || !strings.Contains(updated, "hold --lane") || !strings.HasSuffix(updated, " --pid $$ && "+tc.command) || response.Output.Input["timeout"] != float64(123) {
 				t.Fatalf("wrapper: %s", &out)
 			}
 			input, _ = json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": response.Output.Input})
@@ -370,7 +370,7 @@ func TestBlockingHook(t *testing.T) {
 	out.Reset()
 	diag.Reset()
 	input := `{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ffmpeg -i a b"}}`
-	if code := Run([]string{"_hook-block"}, strings.NewReader(input), &out, &diag); code != 2 || out.Len() != 0 || !strings.Contains(diag.String(), "run --lane") || !strings.Contains(diag.String(), "ffmpeg -i a b") {
+	if code := Run([]string{"_hook-block"}, strings.NewReader(input), &out, &diag); code != 2 || out.Len() != 0 || !strings.Contains(diag.String(), "hold --lane") || !strings.Contains(diag.String(), "ffmpeg -i a b") {
 		t.Fatalf("block hook: %d out=%s diag=%s", code, &out, &diag)
 	}
 	if code := Run([]string{"--yes", "--uninstall"}, strings.NewReader(""), &out, &diag); code != 0 {

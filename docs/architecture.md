@@ -991,12 +991,48 @@ added. Goose also receives a global `.goosehints` snippet. Cursor receives
 the discoverable skill; no undocumented global instructions file is created.
 The shared `~/.agents/AGENTS.md` snippet is available to other integrations.
 
-The Claude hook returns only `updatedInput`, preserving other tool fields
-and normal permission checks. An explicit lane schedules the complete shell
-command under the user's `$SHELL`, falling back to `/bin/sh` when empty.
-The interpreter path and original command are quoted separately. The
-blocking hook alternative (`--claude-hook-block`) exits 2 with the same
-queued command for clients without input-rewrite support.
+The Claude hook returns only `updatedInput`, preserving other tool fields.
+It prefixes the original command with
+`baton hold --lane install --pid $$ && ` (using the installed binary's
+quoted absolute path). Claude's existing Bash or zsh parses the original
+text at top level. Snapshot functions such as `nvm`, working-directory
+changes, and `&>` retain that shell's semantics. `$SHELL` is ignored: it can
+name tcsh even when Claude executes Bash. The original never enters baton's
+argv or a new interpreter's `-c` argument. The hook emits no permission
+approval; the original remains visible as shell syntax to Claude's normal
+permission checks. Tests inspect that structure and execute it in real
+shells; a live Claude permission-policy session remains unverified.
+The blocking alternative (`--claude-hook-block`) exits 2 with the same
+prefixed command for clients without input-rewrite support.
+
+`hold` starts a detached keeper, waits for lane and memory admission, then
+returns without launching the payload. The keeper retains the locks while
+the calling shell continues:
+
+```text
+Claude shell -> hold -> keeper -> queue + memory gate -> slot locks
+                 ^        |
+                 +--ready-+   (close both readiness pipe descriptors)
+Claude shell -> original command, functions and cwd unchanged
+keeper -> poll shell PID + birth token every 100 ms -> exit -> unlock
+```
+
+The keeper closes inherited pipes before the shell proceeds and owns no
+terminal. It watches the shell's kernel birth token, UID, and exit state;
+normal exit, SIGKILL, and PID reuse release the reservation. Shell death
+also cancels queued admission. An inspection error alone does not prove an
+exit. The keeper never signals the shell or its descendants. Its own death
+releases the kernel locks. This is one temporary keeper per shell/lane,
+with no installed service. Windows reports that `hold` is unsupported.
+
+A reservation lasts until the calling shell exits, including commands after
+the original. Repeated holds and same-lane shims discover live reservations
+through verified shell ancestry; they do not queue behind their own shell.
+The holder's PID and the shell's PID/birth token are separate record fields:
+baton did not start that shell, so the reservation cannot establish reap
+provenance. Status and history label it `shell hold`. Its history describes
+the reservation lifetime with exit 0, not the workload's exit status or RSS;
+explicit runs and shims still record their actual child results.
 
 Hook classification reads literal command segments separated by unquoted
 shell operators. It skips assignments, `sudo`, `time`, `nice`, and `env`,
@@ -1014,10 +1050,10 @@ No shell command executes during classification. Quotes, escapes, comments,
 and redirection targets are recognized; shell expansions, functions, script
 contents, here-documents, and `env -S` remain opaque. Use explicit commands
 and shims for those forms and custom commands whose operation is not
-recognized. The runner passes its lane reservation to the child shell,
-preventing a same-lane shim from waiting on its parent's slot. Hook paths
-bind to the installed binary location. No live agent session was modified
-or used to prove hook loading.
+recognized. The runner passes explicit-run reservations to its children;
+shell holds use the ancestry check above. Hook paths bind to the installed
+binary location. No live agent session was modified or used to prove hook
+loading.
 
 The MCP stdio server uses a small stdlib JSON-RPC implementation. Its current
 protocol is 2025-11-25, with the compatible basic tool exchange accepted for

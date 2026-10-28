@@ -67,27 +67,30 @@ entries. Uninstall restores original bytes when settings are unchanged, or
 removes only baton's entry when unrelated settings have changed.
 
 For a matching heavy command it returns `updatedInput.command` containing
-an explicit-lane wrapper:
+an explicit-lane prefix, followed by the original text:
 
 ```sh
-baton run --lane encode -- "${SHELL:-/bin/sh}" -c 'original command'
+baton hold --lane encode --pid $$ && ffmpeg -i in.mp4 out.mp4
 ```
 
 It preserves other tool-input fields. It never returns an `allow` decision,
 so normal Claude permissions still apply. Segments already executing
-`baton run` are skipped; `BATON=off` bypasses the hook. The runner's inherited
-lane reservation keeps same-lane descendant shims from queueing again and records
-them as nested in history. Keep the executable at the installed path.
-Uninstall before changing its location or switching hook modes, then install
-again.
+`baton run` are skipped; `BATON=off` bypasses the hook. A temporary keeper
+holds capacity until the calling shell exits, including after SIGKILL.
+Same-lane descendant shims reuse that reservation and record nested jobs.
+The original stays in Claude's Bash or zsh, preserving snapshot functions,
+`cd`, and `&>` without consulting `$SHELL`. Its shell syntax remains visible
+to permission checks. The keeper records its reservation lifetime, not the
+original command's exit status or RSS. Keep the executable at the installed
+path. Uninstall before changing its location or switching hook modes, then
+install again.
 
 The classifier checks executable names in each shell segment, after variable
 assignments and `sudo`, `time`, `nice`, or `env` wrappers. It recognizes
 install/build operations, npm-style tool launchers, and Python `-m` modules.
 Arguments such as `grep ffmpeg` never select a lane. The first matching
-segment selects the lane for the whole command, run under `$SHELL` or
-`/bin/sh` when unset. Quoted separators, comments, and redirection targets
-are ignored. Shell expansions, functions, scripts, here-docs, and `env -S`
+segment selects the lane for the whole command. Quoted separators,
+comments, and redirection targets are ignored. Shell expansions, functions, scripts, here-docs, and `env -S`
 are opaque. Use explicit `baton run` or shims for those forms.
 This hook coordinates work; it does not enforce a security boundary.
 For clients without input-rewrite support, install with

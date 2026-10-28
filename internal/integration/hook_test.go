@@ -87,7 +87,7 @@ func TestHookExecutables(t *testing.T) {
 			if err := json.Unmarshal(out.Bytes(), &response); err != nil {
 				t.Fatalf("missing queued command: %s (%v)", &out, err)
 			}
-			if !strings.Contains(response.Output.Input.Command, " run --lane '"+tc.lane+"' -- ") || response.Output.Input.Timeout != 123 {
+			if !strings.Contains(response.Output.Input.Command, " hold --lane '"+tc.lane+"' --pid $$ && "+tc.command) || response.Output.Input.Timeout != 123 {
 				t.Fatalf("wrong lane or changed input: %s", &out)
 			}
 			// The blocking fallback must print exactly the same runnable wrapper.

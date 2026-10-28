@@ -1,5 +1,39 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 1 (2026-10-28)
+
+Shipped locally: hook shell semantics only; the first second-pass item is
+checked off. The hook prefixes the untouched original with a shell-lifetime
+hold. Claude's Bash/zsh keeps its functions, cwd, and redirections, and the
+original remains top-level syntax. A detached keeper admits through the
+existing queue/memory gate, watches the shell's birth token, and releases
+capacity on exit. Same-lane shims discover the hold through ancestry.
+Architecture and agent docs record the design and reservation lifetime.
+
+Verified: final native make check and the Linux copy-in Docker make check
+exited 0, including vet, race tests, and all five cross-builds. Pinned
+golangci-lint v2.15.0 reported 0 issues and exited 0. Paired Bash/zsh cases
+compare output and exits 0/3 against the unmodified original with SHELL set
+to tcsh and unset, including functions, loops, &>, and caller cwd after cd.
+Lifetime and queue tests cover normal exit, shell SIGKILL, occupied lanes,
+and cancellation while queued. The built native CLI's status --json showed
+one shell hold, then zero used slots and running jobs after shell SIGKILL.
+All checks isolated HOME, USERPROFILE, inherited/standard XDG paths, TMPDIR,
+and Go writes. Only owned processes were signaled.
+
+Evidence: .yoyo/re-review-shell-{red,red-refined,targeted,native,linux,lint,
+cli}.log and .yoyo/re-review-shell-report.md. The initial red run preceded
+production changes; the refined run uses the committed hook via a Go
+source overlay and includes the final fixture's wrapper-shape assertions.
+
+Pending: ten second-pass items, starting with background tty jobs. A live
+Claude permission-policy session and Windows hold runtime were not tested;
+Windows explicitly rejects hold, while cross-builds pass. Holder history
+records reservation lifetime with exit 0, not workload RSS or exit status.
+SPEC.md, remotes, tags, releases, and real agent settings are unchanged.
+
+Next: read .yoyo/loop-state.md, then write the background-tty PTY red test.
+
 ## Completion-check recovery, iteration 9 (2026-10-28)
 
 Shipped locally: repaired the PTY test's temporary-module cleanup. The test

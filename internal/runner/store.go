@@ -47,7 +47,10 @@ type jobRecord struct {
 	RSSBytes      uint64    `json:"rss_bytes"`
 	PeakRSSBytes  uint64    `json:"peak_rss_bytes"`
 	CacheHit      bool      `json:"cache_hit"`
-	Nested        bool      `json:"nested"`
+	// Shell identity is distinct from the holder PID: baton did not start it.
+	ShellPID   int    `json:"shell_pid,omitempty"`
+	ShellStart string `json:"shell_start,omitempty"`
+	Nested     bool   `json:"nested"`
 }
 
 type store struct{ root string }
