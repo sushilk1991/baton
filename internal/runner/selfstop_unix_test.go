@@ -135,7 +135,16 @@ func TestSelfStopProcess(t *testing.T) {
 	case <-time.After(processTimeout):
 		os.Exit(exitFailure)
 	}
+	// Linux can return from kill before every thread stops, so report
+	// resumption only after the CONT that fg sends.
+	continued := make(chan os.Signal, 1)
+	signal.Notify(continued, syscall.SIGCONT)
 	if err := syscall.Kill(0, syscall.SIGSTOP); err != nil {
+		os.Exit(exitFailure)
+	}
+	select {
+	case <-continued:
+	case <-time.After(processTimeout):
 		os.Exit(exitFailure)
 	}
 
