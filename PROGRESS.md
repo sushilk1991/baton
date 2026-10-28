@@ -1,5 +1,43 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 7 (2026-10-28)
+
+Shipped locally: runtime-only agent labels; only that queue item is checked.
+Exact, nonempty runtime markers replace broad environment prefixes. Config
+and credentials alone fall through to TERM_PROGRAM or terminal. Explicit
+--agent labels retain precedence; Aider uses --agent aider. Architecture
+records the marker policy, upstream sources, and coverage limits.
+
+Verified: native make check and Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Fifteen compiled-CLI cases exercise
+run -> persisted history -> public JSON, including all three requested
+negative cases, OpenCode/Goose configuration, runtime controls, terminal
+fallback, and overrides. Unit regressions reject 13 config/lookalike names.
+All checks isolate HOME, USERPROFILE, XDG paths, TMPDIR, and Go writes.
+
+The first native gate exposed a test synchronization error: zsh's fg text
+omitted arguments, so waiting for the complete command timed out. The same
+failure occurs with baseline detection via a Go overlay. The fixture now
+checks kernel tty ownership using the existing helper. All input, history,
+status, exit, and slot checks remain; five isolated native race runs pass.
+The first Linux gate timed out on the second Ctrl-Z in TestJobControlPTY.
+That unchanged test passed five isolated runs, then the full gate passed.
+Its intermittent failure's cause remains unknown. Baseline/current zsh
+diagnostics also emitted stty's Interrupted system call error; no product
+job-control code changed.
+
+Evidence: .yoyo/re-review-agent-{red-native,targeted,native,linux,lint}.log.
+The first failures are -native-first.log and -linux-first.log; PTY diagnosis
+and repeat runs share the same prefix. Full details are in -report.md.
+
+Pending: four second-pass items, starting with hook classification gaps.
+Live agent sessions and Windows runtime were not exercised. No push, tag,
+publication, remote change, or real agent settings write occurred. SPEC.md
+is unchanged.
+
+Next: read .yoyo/loop-state.md, then write the hook-classification gap reds.
+
 ## Re-review fixes, second pass, iteration 6 (2026-10-28)
 
 Shipped locally: stable hook path; only that queue item is checked.

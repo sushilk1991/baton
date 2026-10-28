@@ -71,9 +71,13 @@ func testBackgroundTTY(t *testing.T, binary, shell, mode string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Wait for actual tty ownership after fg; zsh can omit job arguments.
+	foreground := pid
 	cleanOwnedGroup(t, pid)
 	if mode == "baton" {
-		cleanOwnedGroup(t, terminalJob(t).PID)
+		foreground = terminalJob(t).PID
+		cleanOwnedGroup(t, foreground)
 	}
 	terminal.await(t, shellPrompt)
 	awaitBackgroundStop(t, terminal)
@@ -84,7 +88,7 @@ func testBackgroundTTY(t *testing.T, binary, shell, mode string) {
 
 	// fg must transfer the terminal before resuming the stopped read/stty.
 	terminal.send(t, "fg\n")
-	terminalContains(t, terminal, backgroundRead)
+	awaitForeground(t, terminal, foreground)
 	terminal.send(t, "hello\n")
 	terminal.await(t, "GOT=hello")
 	terminal.await(t, shellPrompt)
@@ -124,25 +128,6 @@ func terminalPrefix(t *testing.T, terminal *testTerminal, prefix string) string 
 			}
 		case <-timer.C:
 			t.Fatalf("terminal timed out awaiting %q: %q", prefix, output)
-		}
-	}
-}
-
-func terminalContains(t *testing.T, terminal *testTerminal, want string) {
-	t.Helper()
-	timer := time.NewTimer(terminalTimeout)
-	defer timer.Stop()
-	for {
-		select {
-		case line, ok := <-terminal.lines:
-			if !ok {
-				t.Fatalf("terminal closed awaiting %q", want)
-			}
-			if strings.Contains(line, want) {
-				return
-			}
-		case <-timer.C:
-			t.Fatalf("terminal timed out awaiting %q", want)
 		}
 	}
 }

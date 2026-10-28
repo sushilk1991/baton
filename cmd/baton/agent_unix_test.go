@@ -14,17 +14,29 @@ func TestRunAgentLabel(t *testing.T) {
 		name, marker, terminal, override, want string
 	}{
 		{name: "API key only", want: "terminal"},
+		{name: "Codex configuration", marker: "CODEX_HOME=/x", want: "terminal"},
+		{name: "Cursor credential", marker: "CURSOR_API_KEY=x", want: "terminal"},
+		{name: "Aider configuration", marker: "AIDER_MODEL=x", want: "terminal"},
+		{name: "OpenCode configuration", marker: "OPENCODE_CONFIG=/x", want: "terminal"},
+		{name: "Goose configuration", marker: "GOOSE_MODEL=x", want: "terminal"},
+		{name: "Codex runtime", marker: "CODEX_THREAD_ID=fixture", want: "codex"},
+		{name: "Cursor runtime", marker: "CURSOR_AGENT=1", want: "cursor"},
+		{name: "OpenCode runtime", marker: "OPENCODE=1", want: "opencode"},
+		{name: "Goose runtime", marker: "GOOSE_TERMINAL=1", want: "goose"},
 		{name: "CLI configuration", marker: "GEMINI_CLI_TRUST_WORKSPACE=true", want: "terminal"},
 		{name: "CLI marker", marker: "GEMINI_CLI=1", want: "gemini"},
 		{name: "terminal fallback", terminal: "tmux", want: "tmux"},
 		{name: "explicit override", override: "fixture", want: "fixture"},
+		{name: "explicit Aider", marker: "AIDER_MODEL=x", override: "aider", want: "aider"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			isolateHome(t)
+			t.Setenv("TMPDIR", t.TempDir())
+
 			// Clear inherited identities so the caller cannot mask a false label.
 			for _, entry := range os.Environ() {
 				key, _, _ := strings.Cut(entry, "=")
-				for _, prefix := range []string{"CLAUDECODE", "CODEX_", "CURSOR_", "GEMINI_", "AIDER_", "OPENCODE_", "GOOSE_", "TERM_PROGRAM"} {
+				for _, prefix := range []string{"CLAUDECODE", "CODEX_", "CURSOR_", "GEMINI_", "AIDER_", "OPENCODE", "GOOSE_", "TERM_PROGRAM"} {
 					if strings.HasPrefix(key, prefix) {
 						t.Setenv(key, "")
 					}
@@ -58,6 +70,7 @@ func TestRunAgentLabel(t *testing.T) {
 			if err := json.Unmarshal(output, &job); err != nil || job.Agent != test.want || job.ExitCode != exitOK {
 				t.Fatalf("history %s: error %v; want agent %q, exit %d", output, err, test.want, exitOK)
 			}
+			t.Logf("persisted agent=%s exit=%d", job.Agent, job.ExitCode)
 		})
 	}
 }

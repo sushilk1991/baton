@@ -23,12 +23,16 @@ func TestIdentity(t *testing.T) {
 		env            []string
 		override, want string
 	}{
-		{[]string{"CLAUDECODE=1", "CODEX_TEST=1"}, "", "claude-code"},
-		{[]string{"CODEX_TEST=1", "CURSOR_TRACE=1"}, "", "codex"},
-		{[]string{"CURSOR_TRACE=1"}, "", "cursor"},
+		{[]string{"CLAUDECODE=1", "CODEX_THREAD_ID=fixture"}, "", "claude-code"},
+		{[]string{"CODEX_THREAD_ID=fixture", "CURSOR_AGENT=1"}, "", "codex"},
+		{[]string{"CURSOR_AGENT=1"}, "", "cursor"},
+		{[]string{"OPENCODE=1", "GOOSE_TERMINAL=1"}, "", "opencode"},
+		{[]string{"GOOSE_TERMINAL=1"}, "", "goose"},
+		{[]string{"CODEX_THREAD_ID=", "CURSOR_AGENT=", "OPENCODE=", "GOOSE_TERMINAL="}, "", "terminal"},
 		{[]string{"TERM_PROGRAM=tmux"}, "", "tmux"},
 		{[]string{"CLAUDECODE="}, "", "terminal"},
 		{[]string{"CLAUDECODE=1"}, "explicit", "explicit"},
+		{[]string{"AIDER_MODEL=fixture"}, "aider", "aider"},
 	} {
 		if got := detectAgent(test.override, test.env); got != test.want {
 			t.Errorf("%v: %q, want %q", test, got, test.want)
@@ -40,6 +44,22 @@ func TestIdentity(t *testing.T) {
 	}
 	if got := repoRoot(filepath.Join(root, "sub", "deeper")); got != root {
 		t.Fatalf("repo root %q, want %q", got, root)
+	}
+}
+
+// TestRuntimeIdentity rejects config and credentials inherited by human shells.
+func TestRuntimeIdentity(t *testing.T) {
+	// Lookalike names ensure detection accepts only exact runtime markers.
+	for _, key := range []string{
+		"CODEX_HOME", "CURSOR_API_KEY", "AIDER_MODEL", "OPENCODE_CONFIG", "GOOSE_MODEL",
+		"CODEX_TEST", "CURSOR_TRACE", "AIDER_TEST", "OPENCODE_TEST", "GOOSE_TEST",
+		"CODEX_THREAD_ID_EXTRA", "CURSOR_AGENT_HOME", "GOOSE_TERMINAL_EXTRA",
+	} {
+		t.Run(key, func(t *testing.T) {
+			if got := detectAgent("", []string{key + "=fixture"}); got != "terminal" {
+				t.Fatalf("%s: agent %q, want terminal", key, got)
+			}
+		})
 	}
 }
 
@@ -56,10 +76,10 @@ func TestGeminiIdentity(t *testing.T) {
 		{[]string{"GEMINI_CLI="}, "", "terminal"},
 		{[]string{"GEMINI_CLI=1", "GEMINI_API_KEY=x"}, "", "gemini"},
 		{[]string{"GEMINI_API_KEY=x", "TERM_PROGRAM=tmux"}, "", "tmux"},
-		{[]string{"CODEX_TEST=1", "GEMINI_CLI=1"}, "", "codex"},
-		{[]string{"CURSOR_TRACE=1", "GEMINI_CLI=1"}, "", "cursor"},
-		{[]string{"GEMINI_CLI=1", "AIDER_TEST=1"}, "", "gemini"},
-		{[]string{"GEMINI_API_KEY=x", "AIDER_TEST=1"}, "", "aider"},
+		{[]string{"CODEX_THREAD_ID=fixture", "GEMINI_CLI=1"}, "", "codex"},
+		{[]string{"CURSOR_AGENT=1", "GEMINI_CLI=1"}, "", "cursor"},
+		{[]string{"GEMINI_CLI=1", "AIDER_MODEL=fixture"}, "", "gemini"},
+		{[]string{"GEMINI_API_KEY=x", "AIDER_MODEL=fixture"}, "", "terminal"},
 		{[]string{"GEMINI_CLI=1"}, "explicit", "explicit"},
 	} {
 		if got := detectAgent(test.override, test.env); got != test.want {

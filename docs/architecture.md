@@ -357,15 +357,27 @@ and memory budget. Running records add child PID and current/peak RSS.
 Normal completion removes the record and owner file. SIGKILL can leave
 stale records; their released kernel owner locks permit later cleanup.
 Agent detection prefers `--agent`, then Claude Code, Codex, Cursor, Gemini,
-Aider, OpenCode, Goose, `TERM_PROGRAM`, and finally `terminal`. The nearest
+OpenCode, Goose, `TERM_PROGRAM`, and finally `terminal`. The nearest
 `.git` directory or worktree pointer identifies the repository root.
 
-Gemini detection requires the exact, nonempty `GEMINI_CLI` marker, matching
-the nonempty-marker policy used for Claude Code. Credentials and configuration
-such as `GEMINI_API_KEY`, `GEMINI_MODEL`, and `GEMINI_CLI_HOME` do not identify
-an agent. Google's [shell execution source](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/services/shellExecutionService.ts),
-checked on 2026-10-28, sets `GEMINI_CLI=1`. Agent precedence and the other
-agents' prefix rules remain unchanged; detection is cooperative metadata.
+Only exact, nonempty runtime markers identify agents: `CLAUDECODE`,
+`CODEX_THREAD_ID`, `CURSOR_AGENT`, `GEMINI_CLI`, `OPENCODE`, and
+`GOOSE_TERMINAL`. Prefix matching also accepted configuration and credentials
+from human shells, so `CODEX_HOME`, `CURSOR_API_KEY`, `AIDER_MODEL`,
+`OPENCODE_CONFIG`, and `GOOSE_MODEL` now fall through to the terminal label.
+Aider has no accepted automatic marker; use `--agent aider`. Empty markers
+fall through too. Inherited or manually set runtime markers can still label
+a descendant; detection is cooperative metadata.
+
+Sources checked on 2026-10-28: Codex's [shell environment source](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/shell_environment.rs)
+injects `CODEX_THREAD_ID`; Cursor's [terminal documentation](https://cursor.com/docs/agent/tools/terminal)
+names `CURSOR_AGENT`; Gemini's [shell execution source](https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/services/shellExecutionService.ts)
+sets `GEMINI_CLI=1`. OpenCode's [v1.2.0 entry point](https://github.com/anomalyco/opencode/blob/v1.2.0/packages/opencode/src/index.ts)
+sets `OPENCODE=1`; Goose's [retry command source](https://github.com/aaif-goose/goose/blob/main/crates/goose/src/agents/retry.rs)
+sets `GOOSE_TERMINAL=1` on that path. These sources do not prove every
+version or execution path exports a marker. Aider's [command runner](https://github.com/Aider-AI/aider/blob/main/aider/run_cmd.py)
+sets none at its subprocess launch sites, so configuration prefixes provide
+no reliable replacement for an explicit label.
 
 The command signature is SHA-256 of JSON-encoded argv and cwd. This preserves
 argument boundaries and separates project builds. Plaintext argv is not

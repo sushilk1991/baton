@@ -113,15 +113,18 @@ func detectAgent(override string, env []string) string {
 	if values["CLAUDECODE"] != "" {
 		return "claude-code"
 	}
-	// Only trailing-underscore markers match prefixes; GEMINI_CLI excludes
-	// credentials and configuration such as GEMINI_API_KEY or GEMINI_CLI_HOME.
-	for _, marker := range []struct{ key, agent string }{{"CODEX_", "codex"}, {"CURSOR_", "cursor"}, {"GEMINI_CLI", "gemini"}, {"AIDER_", "aider"}, {"OPENCODE_", "opencode"}, {"GOOSE_", "goose"}} {
-		for key := range values {
-			if key == marker.key || strings.HasSuffix(marker.key, "_") && strings.HasPrefix(key, marker.key) {
-				return marker.agent
-			}
+
+	// Exact runtime markers exclude shared config and credentials, e.g.
+	// CODEX_HOME in a human shell. Agents without one can use --agent.
+	for _, marker := range []struct{ key, agent string }{
+		{"CODEX_THREAD_ID", "codex"}, {"CURSOR_AGENT", "cursor"},
+		{"GEMINI_CLI", "gemini"}, {"OPENCODE", "opencode"}, {"GOOSE_TERMINAL", "goose"},
+	} {
+		if values[marker.key] != "" {
+			return marker.agent
 		}
 	}
+
 	if values["TERM_PROGRAM"] != "" {
 		return values["TERM_PROGRAM"]
 	}
