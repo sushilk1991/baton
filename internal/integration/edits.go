@@ -136,7 +136,7 @@ func undoJSON(before, after, data []byte) ([]byte, error) {
 		if len(raw) == 0 {
 			raw = []byte("{}")
 		}
-		// Preserve integer precision in unrelated settings during reserialization.
+		// Preserve integer precision when matching the recorded owned entry.
 		decoder := json.NewDecoder(bytes.NewReader(raw))
 		decoder.UseNumber()
 		if !json.Valid(raw) || decoder.Decode(&values[n]) != nil {
@@ -146,12 +146,19 @@ func undoJSON(before, after, data []byte) ([]byte, error) {
 			return nil, errors.New("expected JSON settings object")
 		}
 	}
+	// undoValue mutates maps and arrays, so keep a separate current tree for
+	// the byte patch. Semantic ownership checks still reject edited entries.
+	var current any
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&current); err != nil {
+		return nil, err
+	}
 	restored, ok := undoValue(values[0], values[1], values[2])
 	if !ok {
 		return nil, errors.New("owned JSON entry changed or duplicated")
 	}
-	body, err := json.MarshalIndent(restored, "", "  ")
-	return append(body, '\n'), err
+	return restoreJSON(data, current, restored)
 }
 
 func undoValue(before, after, current any) (any, bool) {

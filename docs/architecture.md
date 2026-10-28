@@ -1034,9 +1034,15 @@ snapshots. Uninstall journals them and its direction before restoring leaves
 and removing empty parents. A crash between publication and a target write
 leaves a recoverable before/after state. Existing version-1 manifests need no
 migration; ownership is inferred from recorded contents, including resolved
-symlink targets. Unchanged files restore exact original bytes; edited JSON is
-reformatted with integer precision retained. Originals may include sensitive
-settings, so the manifest is private (0600). No secrets are printed.
+symlink targets. Claude settings installation appends only the owned entry
+and any missing parent keys. Decoder offsets locate raw JSON values, so
+existing key order, whitespace, string escapes, and literal `&&` or `>` stay
+unchanged. Removal validates ownership by value with integer precision,
+then splices out that entry and its comma. Moving or reformatting the owned
+entry is supported; user hooks and nonempty parent objects survive. Duplicate
+keys on an edited path fail before publication. Unchanged files restore exact
+original bytes. Originals may include sensitive settings, so the manifest is
+private (0600). No secrets are printed.
 
 With both instruction markers absent, or the recorded hook entry removed
 leaving the original array, uninstall leaves current bytes alone and removes

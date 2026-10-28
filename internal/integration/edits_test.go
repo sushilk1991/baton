@@ -102,7 +102,7 @@ func TestHookOutsideEdits(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			data = bytes.Replace(data, []byte("{\n"), []byte("{\n  \"userKey\": \"keep\",\n"), 1)
+			data = bytes.Replace(data, []byte("{"), []byte("{\n  \"userKey\": \"keep\",\n"), 1)
 			mustWrite(t, name, data)
 			if err := i.manage(removeAgents, applyChanges, withoutHook, &bytes.Buffer{}); err != nil {
 				t.Fatalf("uninstall with unrelated key: %v", err)
@@ -138,7 +138,7 @@ func TestLinkedSettingsEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data = bytes.Replace(data, []byte("{\n"), []byte("{\n  \"userKey\": \"keep\",\n"), 1)
+	data = bytes.Replace(data, []byte("{"), []byte("{\n  \"userKey\": \"keep\",\n"), 1)
 	mustWrite(t, target, data)
 	if err := i.manage(removeAgents, applyChanges, withoutHook, &bytes.Buffer{}); err != nil {
 		t.Fatalf("uninstall linked settings: %v", err)

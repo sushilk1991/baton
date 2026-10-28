@@ -1,5 +1,36 @@
 # Progress
 
+## Re-review fixes, second pass, iteration 9 (2026-10-28)
+
+Shipped locally: settings bytes; only that queue item is checked. Hook
+installation inserts one entry and missing parents into the original JSON.
+Removal validates semantic ownership, then edits raw spans. User key order,
+whitespace, escapes, literal && and >, and unrelated edits survive. Moved or
+reformatted owned entries still remove safely. Architecture records the
+offset-based edits and rejection of duplicate keys on edited paths.
+
+Verified: native make check and Linux copy-in Docker make check exited 0,
+including vet, race tests, and five cross-builds. Pinned golangci-lint
+v2.15.0 reported 0 issues and exited 0. Five format fixtures cover existing
+hooks, empty containers, CRLF, tabs, escaped strings, and numeric spelling.
+Removal tests cover first/middle/last positions and user events added under
+a created parent. Eight compiled-CLI cases cover both hook policies,
+preview, idempotence, and uninstall after user edits. Existing hook commands
+using && and > execute with the expected output and redirected file.
+All checks isolate HOME, USERPROFILE, XDG paths, TMPDIR, and Go writes.
+
+Evidence: .yoyo/re-review-settings-bytes-red-native.log records all five
+format failures before production edits. The final fixtures also reject
+the original writers through a source overlay in -red-refined.log. Green
+logs are -targeted, -integration, -cli, -native, -linux, and -lint under the
+same prefix. The runner and report record commands, output, and limits.
+
+Pending: reap listing reasons and the second-pass final gate. Live Claude
+loading and Windows runtime were not exercised. No push, tag, publication,
+remote change, or real agent settings write occurred. SPEC.md is unchanged.
+
+Next: read .yoyo/loop-state.md, then write the reap-listing reason red.
+
 ## Re-review fixes, second pass, iteration 8 (2026-10-28)
 
 Shipped locally: hook classification gaps; only that queue item is checked.

@@ -305,23 +305,19 @@ func (i installer) addHook(j *journal, path string, policy hookPolicy) error {
 	if err != nil {
 		return err
 	}
-	entries = append(entries, entry)
-	hooks["PreToolUse"], err = json.Marshal(entries)
-	if err != nil {
-		return err
+	// Only the new entry is encoded. Existing settings remain byte-identical.
+	base := old
+	if !exists {
+		base = []byte("{\n}\n")
 	}
-	settings["hooks"], err = json.Marshal(hooks)
-	if err != nil {
-		return err
-	}
-	body, err := json.MarshalIndent(settings, "", "  ")
+	body, err := appendJSON(base, []string{"hooks", "PreToolUse"}, entry)
 	if err != nil {
 		return err
 	}
 	if err := i.addParents(j, path); err != nil {
 		return err
 	}
-	j.Entries = append(j.Entries, change{Path: path, Kind: "file", Existed: exists, Before: old, BeforeMode: mode, After: append(body, '\n'), Mode: mode})
+	j.Entries = append(j.Entries, change{Path: path, Kind: "file", Existed: exists, Before: old, BeforeMode: mode, After: body, Mode: mode})
 	return nil
 }
 
