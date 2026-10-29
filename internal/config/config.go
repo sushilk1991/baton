@@ -238,7 +238,7 @@ func (config *Config) LaneNames() []string {
 
 // AutoLane matches argv in configured order while leaving shell text opaque.
 // Built-in matchers see only the executable after wrappers (env, sudo,
-// time, nice) and, for known dispatchers, its operation or launched tool,
+// timeout, ...) and, for known dispatchers, its operation or launched tool,
 // so grep -r llama notes stays unqueued while ollama run uses ml. Matchers
 // the user wrote see the full unwrapped argv, e.g. '^make render$'.
 //
@@ -249,18 +249,21 @@ func (config *Config) AutoLane(args []string) string {
 	if len(words) == 0 {
 		return ""
 	}
-	base := strings.ToLower(filepath.Base(strings.ReplaceAll(words[0], `\`, "/")))
-	base = strings.TrimSuffix(base, ".exe")
+	base := programName(words[0])
 	if base == "sh" || base == "bash" || base == "zsh" || base == "cmd" || base == "powershell" || base == "pwsh" {
 		return ""
 	}
-	// baton never queues behind itself: an explicit baton run or hold takes
-	// its own lane, and an outer reservation would let it skip that lane's
-	// slots as a nested job.
-	if base == "baton" {
-		return ""
+	// baton never queues behind itself, even when a launcher starts it
+	// (uv run baton run): an explicit baton run or hold takes its own lane,
+	// and an outer reservation would let it skip that lane's slots as a
+	// nested job.
+	headWords := commandHead(words)
+	for _, word := range headWords {
+		if programName(word) == "baton" {
+			return ""
+		}
 	}
-	head := strings.Join(commandHead(words), " ")
+	head := strings.Join(headWords, " ")
 	argv := strings.Join(words, " ")
 	for _, rule := range config.rules {
 		text := head
@@ -274,8 +277,15 @@ func (config *Config) AutoLane(args []string) string {
 	return ""
 }
 
-// Executable returns the program argv runs after env, sudo, time, and nice
-// wrappers, or "" when there is none or a BATON=off assignment disables it.
+// programName is a program's lowercase base name on any OS, without .exe:
+// C:\tools\baton.exe -> baton.
+func programName(word string) string {
+	base := strings.ToLower(filepath.Base(strings.ReplaceAll(word, `\`, "/")))
+	return strings.TrimSuffix(base, ".exe")
+}
+
+// Executable returns the program argv runs after wrappers such as env,
+// sudo, and timeout, or "" when there is none or BATON=off disables it.
 func Executable(args []string) string {
 	words := unwrapCommand(args)
 	if len(words) == 0 {

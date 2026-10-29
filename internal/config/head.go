@@ -6,16 +6,23 @@ import (
 )
 
 // Option lists that take a value come from each tool's --help (uv 0.12,
-// pipx 1.8, pip 25, pnpm 10, bun 1.3) so the next word is never mistaken
-// for the launched tool: uv run -w numpy whisper runs whisper.
+// pipx 1.8, pip 25, pnpm 10.28, bun 1.3, micromamba's run.cpp) so the next
+// word is never mistaken for the launched tool: uv run -w numpy whisper.
 const (
 	launcherOptions = "-p --package"
 	launcherShell   = "-c --call"
 	npmOptions      = launcherOptions + " " + npmConfigValues
+	// pnpm options that take a value, before or after exec, dlx, and run;
+	// -w is pnpm's --workspace-root flag, not npm's --workspace.
+	pnpmOptions = "-C --dir -F --filter --filter-prod --loglevel --reporter --resume-from --workspace-concurrency --test-pattern --changed-files-ignore-pattern --allow-build --package"
+	pnpmShell   = "-c --shell-mode"
+	// bun options that take a value; --inspect's value is only attached.
+	bunOptions = "--elide-lines -F --filter --shell -r --preload --require --import --cpu-prof-name --cpu-prof-dir --cpu-prof-interval --heap-prof-name --heap-prof-dir --install --port --conditions --fetch-preconnect --max-http-header-size --dns-result-order --title --unhandled-rejections --console-depth --user-agent --cron-title --cron-period --main-fields --extension-order --tsconfig-override -d --define --drop --feature -l --loader --jsx-factory --jsx-fragment --jsx-import-source --jsx-runtime --env-file --cwd -c --config"
+	bunInline  = "-e --eval -p --print"
+	// Characters that make one word a shell body: yarn exec 'printf chrome'.
+	shellSyntax = " \t\n;|&$`<>()"
 	// yarn workspaces foreach options that take a value (yarn 4 docs).
 	yarnForeachOptions = "--from -j --jobs --include --exclude"
-	// npm, pnpm, yarn, and bun run options before the script or binary name.
-	scriptOptions = "-w --workspace --script-shell -F --filter --resume-from --reporter --require --elide-lines --shell --cwd"
 	// uv global options, accepted before or after the operation.
 	uvGlobals = "--cache-dir --color --allow-insecure-host --directory --project --config-file"
 	// uv run, uv tool run, and uvx options before the launched tool.
@@ -23,7 +30,12 @@ const (
 	pipxOptions   = "--python-args --with --spec --python --fetch-python -i --index-url --pip-args --cooldown --backend"
 	poetryOptions = "-C --directory -P --project"
 	condaOptions  = "-n --name -p --prefix --cwd"
-	pipGlobals    = "--python --log --keyring-provider --proxy --retries --timeout --exists-action --trusted-host --cert --client-cert --cache-dir --use-feature --use-deprecated --resume-retries"
+	// mamba 2 and micromamba add root-prefix and run options to conda's.
+	mambaGlobals = "-r --root-prefix --relocate-prefix"
+	mambaOptions = condaOptions + " " + mambaGlobals + " -a --attach -e --env --label"
+	// uv run -s and --script read the target as a script, whatever its name.
+	uvScript   = "-s --script --gui-script"
+	pipGlobals = "--python --log --keyring-provider --proxy --retries --timeout --exists-action --trusted-host --cert --client-cert --cache-dir --use-feature --use-deprecated --resume-retries"
 	// Python short options that take a value, attached or not: -W ignore, -Xdev.
 	pythonValueLetters = "WX"
 	pythonHashOption   = "--check-hash-based-pycs"
@@ -41,19 +53,17 @@ type dispatcherOptions struct {
 }
 
 var dispatchers = map[string]dispatcherOptions{
-	"uv":     {values: uvGlobals},
-	"npm":    {values: npmOptions},
-	"pnpm":   {values: "-C --dir -F --filter --filter-prod --loglevel --reporter --test-pattern --changed-files-ignore-pattern"},
-	"yarn":   {values: "--cwd"},
-	"bun":    {values: "-r --preload --require --import -F --filter --shell --env-file --cwd -c --config --install --port --conditions --title", opaque: "-e --eval -p --print"},
-	"pip":    {values: pipGlobals},
-	"pip3":   {values: pipGlobals},
-	"pipx":   {},
-	"poetry": {values: poetryOptions},
-	// mamba and micromamba share conda's run options.
+	"uv":         {values: uvGlobals},
+	"pnpm":       {values: pnpmOptions},
+	"yarn":       {values: "--cwd"},
+	"bun":        {values: bunOptions, opaque: bunInline},
+	"pip":        {values: pipGlobals},
+	"pip3":       {values: pipGlobals},
+	"pipx":       {},
+	"poetry":     {values: poetryOptions},
 	"conda":      {},
-	"mamba":      {},
-	"micromamba": {},
+	"mamba":      {values: mambaGlobals},
+	"micromamba": {values: mambaGlobals},
 	"cargo":      {values: "--color --config -Z -C"},
 	"go":         {values: "-C"},
 	"brew":       {},
@@ -98,7 +108,8 @@ func unwrapCommand(words []string) []string {
 		case "nice":
 			words = commandOptions(words[1:], "-n --adjustment", "")
 		case "env":
-			words = commandOptions(words[1:], "-u -C --unset --chdir --argv0", "-S --split-string")
+			// macOS env adds -P utilpath and -L/-U user.
+			words = commandOptions(words[1:], "-u -C -P -L -U --unset --chdir --argv0", "-S --split-string")
 		case "nohup":
 			words = commandOptions(words[1:], "", "")
 		case "cross-env":
@@ -119,7 +130,8 @@ func unwrapCommand(words []string) []string {
 		case "ionice":
 			words = commandOptions(words[1:], "-c -n -p -P -u --class --classdata --pid --pgid --uid", "")
 		case "arch":
-			words = commandOptions(words[1:], "-arch -d -e", "")
+			// arch options are whole words: -arm64e, -arch x86_64, -d NAME.
+			words = skipOptions(words[1:], "-arch -d -e", "", wordOptions)
 		case "exec":
 			words = commandOptions(words[1:], "-a", "")
 		case "command":
@@ -135,8 +147,25 @@ func unwrapCommand(words []string) []string {
 	return nil
 }
 
+// optionStyle says how a tool's single-dash options combine.
+type optionStyle int
+
+const (
+	// posixOptions cluster short letters: timeout -vk 5 is -v -k 5.
+	posixOptions optionStyle = iota
+	// wordOptions are whole words: arch -arm64e is one option.
+	wordOptions
+)
+
 func commandOptions(words []string, values, opaque string) []string {
-	// Consume only wrapper options; stop at -- or the actual executable.
+	return skipOptions(words, values, opaque, posixOptions)
+}
+
+// skipOptions consumes a tool's own options and returns what follows: the
+// first other word on, or the words after --. Values listed in values are
+// consumed with their option; an opaque option runs a shell body or inline
+// code, and help or version runs nothing, so both return nil.
+func skipOptions(words []string, values, opaque string, style optionStyle) []string {
 	for len(words) > 0 {
 		option := words[0]
 		if option == "--" {
@@ -145,16 +174,74 @@ func commandOptions(words []string, values, opaque string) []string {
 		if !strings.HasPrefix(option, "-") {
 			return words
 		}
+		if option == helpFlag || option == versionFlag {
+			return nil
+		}
 		name, _, attached := strings.Cut(option, "=")
-		if strings.Contains(" "+opaque+" ", " "+name+" ") {
+		if listed(opaque, name) {
 			return nil
 		}
 		words = words[1:]
-		if !attached && strings.Contains(" "+values+" ", " "+name+" ") && len(words) > 0 {
+		if listed(values, name) {
+			if !attached && len(words) > 0 {
+				words = words[1:]
+			}
+			continue
+		}
+		if attached || style == wordOptions || strings.HasPrefix(option, "--") {
+			continue
+		}
+
+		// A short cluster ends at its first letter that takes a value, which
+		// is the rest of the word or the next one: -vk 5, -la name, -Sbody.
+		for at := 1; at < len(option); at++ {
+			letter := "-" + option[at:at+1]
+			if listed(opaque, letter) {
+				return nil
+			}
+			if listed(values, letter) {
+				if at+1 == len(option) && len(words) > 0 {
+					words = words[1:]
+				}
+				break
+			}
+		}
+	}
+	return nil
+}
+
+// npmCommand skips npm's options as its parser, nopt, does: an option
+// listed in npmOptions takes the next word, and a Boolean one takes an
+// explicit value such as false: npm exec --yes false -- playwright.
+func npmCommand(words []string, opaque string) []string {
+	for len(words) > 0 {
+		option := words[0]
+		if option == "--" {
+			return words[1:]
+		}
+		if !strings.HasPrefix(option, "-") {
+			return words
+		}
+		if option == helpFlag || option == versionFlag {
+			return nil
+		}
+		name, _, attached := strings.Cut(option, "=")
+		if listed(opaque, name) {
+			return nil
+		}
+		words = words[1:]
+		if attached || len(words) == 0 {
+			continue
+		}
+		if listed(npmOptions, name) || listed(npmBooleanValues, words[0]) {
 			words = words[1:]
 		}
 	}
 	return nil
+}
+
+func listed(list, word string) bool {
+	return strings.Contains(" "+list+" ", " "+word+" ")
 }
 
 func commandHead(words []string) []string {
@@ -181,11 +268,11 @@ func commandHead(words []string) []string {
 	}
 	switch base {
 	case "npx":
-		return launched(head, words[1:], npmOptions, launcherShell)
+		return launched(head, npmCommand(words[1:], launcherShell))
 	case "bunx":
-		return launched(head, words[1:], launcherOptions, "")
+		return launched(head, commandOptions(words[1:], launcherOptions, ""))
 	case "uvx":
-		return launched(head, words[1:], uvOptions, "")
+		return launched(head, commandOptions(words[1:], uvOptions, ""))
 	}
 
 	// Global options precede a dispatcher's operation and never reach
@@ -216,34 +303,56 @@ func commandHead(words []string) []string {
 	// Payload arguments never reach built-in regexes, e.g. npm info ffmpeg.
 	// Launchers run a named tool, which keeps its own operation:
 	// npx cargo build, uv run whisper audio.wav, pnpm exec playwright test.
-	packageManager := base == "npm" || base == "pnpm" || base == "yarn" || base == "bun"
+	// The script or package binary after run is the operation:
+	// yarn run --binaries-only playwright test -> yarn run playwright.
+	// yarn exec joins its words into a shell script: a single word holding
+	// shell syntax stays opaque, yarn exec remotion render is a command.
+	launch := append(head, verb)
+	rest := words[2:]
+	run := verb == "run" || verb == "run-script"
 	switch {
 	case base == "npm" && (verb == "exec" || verb == "x"):
-		return launched(append(head, verb), words[2:], npmOptions, launcherShell)
-	case packageManager && (verb == "exec" || verb == "dlx" || verb == "x"):
-		return launched(append(head, verb), words[2:], launcherOptions, launcherShell)
-	case packageManager && (verb == "run" || verb == "run-script"):
-		// The script or package binary name is the operation:
-		// yarn run --binaries-only playwright test -> yarn run playwright.
-		return launched(append(head, verb), words[2:], scriptOptions, "")
+		return launched(launch, npmCommand(rest, launcherShell))
+	case base == "npm" && run:
+		return launched(launch, npmCommand(rest, ""))
+	case base == "pnpm" && (verb == "exec" || verb == "dlx"):
+		return launched(launch, commandOptions(rest, pnpmOptions, pnpmShell))
+	case base == "pnpm" && run:
+		return launched(launch, commandOptions(rest, pnpmOptions, ""))
+	case base == "yarn" && verb == "exec":
+		if len(rest) > 0 && strings.ContainsAny(rest[0], shellSyntax) {
+			return launch
+		}
+		return launched(launch, rest)
+	case base == "yarn" && verb == "dlx":
+		return launched(launch, commandOptions(rest, launcherOptions, ""))
+	case base == "yarn" && run:
+		return launched(launch, commandOptions(rest, "--require", ""))
+	case base == "bun" && verb == "x":
+		return launched(launch, commandOptions(rest, launcherOptions, ""))
+	case base == "bun" && run:
+		return launched(launch, commandOptions(rest, bunOptions, bunInline))
 	case base == "uv" && verb == "run":
-		return launched(append(head, verb), words[2:], uvOptions, "")
+		return launched(launch, commandOptions(rest, uvOptions, uvScript))
 	case base == "uv" && verb == "tool":
-		tool := commandOptions(words[2:], uvGlobals, "")
+		tool := commandOptions(rest, uvGlobals, "")
 		if len(tool) > 0 && tool[0] == "run" {
-			return launched(append(head, verb, tool[0]), tool[1:], uvOptions, "")
+			return launched(append(launch, tool[0]), commandOptions(tool[1:], uvOptions, ""))
 		}
 	case base == "pipx" && verb == "run":
-		return launched(append(head, verb), words[2:], pipxOptions, "")
+		return launched(launch, commandOptions(rest, pipxOptions, ""))
 	case base == "poetry" && verb == "run":
-		return launched(append(head, verb), words[2:], poetryOptions, "")
-	case (base == "conda" || base == "mamba" || base == "micromamba") && verb == "run":
-		return launched(append(head, verb), words[2:], condaOptions, "")
+		return launched(launch, commandOptions(rest, poetryOptions, ""))
+	case base == "conda" && verb == "run":
+		return launched(launch, commandOptions(rest, condaOptions, ""))
+	case (base == "mamba" || base == "micromamba") && verb == "run":
+		return launched(launch, commandOptions(rest, mambaOptions, ""))
 	}
-	// pnpm, yarn, and bun also run a package binary named first, e.g.
-	// yarn remotion render; their other verbs (add, test) match nothing.
+	// pnpm, yarn, and bun also run a package binary named first, which is
+	// classified like any command: yarn remotion render, pnpm cargo build.
+	// Their own verbs keep only the verb: yarn add playwright -> yarn add.
 	if (base == "pnpm" || base == "yarn" || base == "bun") && !strings.HasPrefix(verb, "-") && !scriptCommand(verb) {
-		return append(head, filepath.Base(verb))
+		return launched(head, words[1:])
 	}
 	switch base {
 	case "npm", "pnpm", "yarn", "bun", "pip", "pip3", "uv", "brew", "cargo", "go":
@@ -257,6 +366,9 @@ func commandHead(words []string) []string {
 // dispatcherArgs drops a known dispatcher's global options and returns
 // the operation and its arguments: cargo +nightly -Z x build -> build.
 func dispatcherArgs(base string, args []string) []string {
+	if base == "npm" {
+		return npmCommand(args, "")
+	}
 	options, known := dispatchers[base]
 	if !known {
 		return args
@@ -269,11 +381,11 @@ func dispatcherArgs(base string, args []string) []string {
 	return commandOptions(args, options.values, options.opaque)
 }
 
-// launched appends the head of the tool a launcher runs, after the
-// launcher's own options: npx -y remotion render -> npx remotion. The
-// tool may be wrapped too: uv run nice -n 10 whisper -> uv run whisper.
-func launched(head, rest []string, values, opaque string) []string {
-	target := unwrapCommand(commandOptions(rest, values, opaque))
+// launched appends the head of the tool a launcher runs, given the words
+// after the launcher's own options: npx -y remotion render -> npx remotion.
+// The tool may be wrapped too: uv run nice -n 10 whisper -> uv run whisper.
+func launched(head, target []string) []string {
+	target = unwrapCommand(target)
 	if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
 		return head
 	}
@@ -303,7 +415,8 @@ func pythonModule(args []string) []string {
 		for at := 1; at < len(option); at++ {
 			letter, value := option[at], option[at+1:]
 			switch {
-			case letter == 'c':
+			// -c runs a command; -V and -h only print.
+			case letter == 'c' || letter == 'V' || letter == 'h':
 				return nil
 			case letter == 'm':
 				rest := args[index+1:]
@@ -350,8 +463,13 @@ func readOnlyCommand(words []string) bool {
 			return true
 		}
 	}
-	if base == "uv" && words[1] == "pip" && len(words) > 2 {
-		switch words[2] {
+	if base == "uv" && words[1] == "pip" {
+		// Options may precede the query: uv pip -q list.
+		query := commandOptions(words[2:], uvGlobals, "")
+		if len(query) == 0 {
+			return false
+		}
+		switch query[0] {
 		case "list", "show", "freeze", "check", "tree":
 			return true
 		}
@@ -362,7 +480,7 @@ func readOnlyCommand(words []string) bool {
 func scriptCommand(word string) bool {
 	// A script's name says nothing about its work; do not inspect its contents.
 	switch strings.ToLower(filepath.Ext(word)) {
-	case ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".tcsh", ".py", ".js", ".mjs", ".cjs", ".ts", ".rb", ".pl", ".ps1", ".bat", ".cmd":
+	case ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".tcsh", ".py", ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx", ".rb", ".pl", ".ps1", ".bat", ".cmd":
 		return true
 	}
 	return false

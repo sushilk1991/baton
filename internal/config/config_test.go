@@ -138,6 +138,48 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"yarn", "workspaces", "list"}, ""},
 		{[]string{"npx", "cross-env", "NODE_ENV=production", "remotion", "render"}, "render"},
 		{[]string{"cross-env", "A=1", "ffmpeg", "-i", "a"}, "encode"},
+		// A package binary named after pnpm, yarn, or bun is classified
+		// like any command: pnpm cargo build, pnpm nice ffmpeg.
+		{[]string{"pnpm", "cargo", "build"}, "build"},
+		{[]string{"pnpm", "python", "-m", "mlx_whisper"}, "ml"},
+		{[]string{"pnpm", "nice", "-n", "10", "ffmpeg", "-i", "a", "b"}, "encode"},
+		// pnpm options come from pnpm 10's --help; -w is a flag there.
+		{[]string{"pnpm", "run", "-w", "playwright", "test"}, "render"},
+		{[]string{"pnpm", "exec", "--filter", "web", "playwright", "test"}, "render"},
+		{[]string{"pnpm", "dlx", "--reporter", "append-only", "playwright", "test"}, "render"},
+		{[]string{"pnpm", "-r", "--workspace-concurrency", "1", "exec", "playwright", "test"}, "render"},
+		// npm Boolean options take an explicit true, false, null, or always.
+		{[]string{"npm", "exec", "--yes", "false", "--", "playwright", "test"}, "render"},
+		{[]string{"npm", "--color", "always", "exec", "playwright", "test"}, "render"},
+		{[]string{"npm", "run", "--cache", "/tmp/npm-cache", "playwright", "test"}, "render"},
+		{[]string{"npx", "--browser", "firefox", "playwright", "test"}, "render"},
+		// bun options come from bun 1.3's --help.
+		{[]string{"bun", "--console-depth", "4", "run", "playwright", "test"}, "render"},
+		{[]string{"bun", "run", "--preload", "./setup.js", "playwright", "test"}, "render"},
+		// micromamba has options conda lacks.
+		{[]string{"micromamba", "run", "--label", "job", "whisper", "a.wav"}, "ml"},
+		{[]string{"micromamba", "--root-prefix", "/tmp/mamba", "run", "-n", "ml", "whisper", "a.wav"}, "ml"},
+		// Short options cluster: the first letter taking a value ends it.
+		{[]string{"timeout", "-vk", "5", "600", "ffmpeg", "-i", "a", "b"}, "encode"},
+		{[]string{"caffeinate", "-it", "600", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"exec", "-la", "ffmpeg", "true"}, ""},
+		{[]string{"command", "-pv", "ffmpeg"}, ""},
+		{[]string{"env", "-Sprintf chrome"}, ""},
+		{[]string{"env", "-P", "/opt/homebrew/bin", "ffmpeg", "-i", "a", "b"}, "encode"},
+		{[]string{"arch", "-arm64e", "xcodebuild", "build"}, "build"},
+		// Shell bodies and explicit scripts stay opaque.
+		{[]string{"pnpm", "exec", "--shell-mode", "printf chrome"}, ""},
+		{[]string{"yarn", "exec", "printf chrome"}, ""},
+		{[]string{"yarn", "exec", "remotion", "render"}, "render"},
+		{[]string{"uv", "run", "--script", "./whisper"}, ""},
+		{[]string{"uv", "run", "-s", "./whisper"}, ""},
+		{[]string{"bun", "run", "./chrome-debug.tsx"}, ""},
+		{[]string{"bun", "./chrome-debug.jsx"}, ""},
+		// Help, version, and queries run nothing heavy.
+		{[]string{"uv", "pip", "-q", "list"}, ""},
+		{[]string{"timeout", "--help", "60", "ffmpeg"}, ""},
+		{[]string{"python", "-V", "-m", "whisper"}, ""},
+		{[]string{"python3", "-h", "-m", "whisper"}, ""},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)
@@ -464,6 +506,8 @@ func TestAutoLaneSkipsBaton(t *testing.T) {
 		{"baton", "run", "--lane", "encode", "--", "ffmpeg", "-i", "in", "out"},
 		{"sudo", "/opt/homebrew/bin/baton", "hold", "--lane", "encode", "--pid", "1"},
 		{`C:\tools\baton.exe`, "run", "--", "x"},
+		{"uv", "run", "--no-project", "baton", "run", "--lane", "encode", "--", "ffmpeg", "-i", "a", "b"},
+		{"npx", "baton", "run", "--", "x"},
 	} {
 		if got := config.AutoLane(args); got != "" {
 			t.Errorf("%v = %q, want no lane", args, got)
