@@ -253,11 +253,61 @@ func TestAiderOutsideEdits(t *testing.T) {
 				t.Fatalf("uninstall: %v", err)
 			}
 			got, err := os.ReadFile(name)
-			if err != nil || bytes.Contains(got, []byte(".agents/AGENTS.md")) || !bytes.Contains(got, []byte("edited")) || (strings.Contains(original, "CONVENTIONS.md") && !bytes.Contains(got, []byte("CONVENTIONS.md"))) {
+			if err != nil || bytes.Contains(got, aiderEntry(t, i.home)) || !bytes.Contains(got, []byte("edited")) || (strings.Contains(original, "CONVENTIONS.md") && !bytes.Contains(got, []byte("CONVENTIONS.md"))) {
 				t.Fatalf("restore: %s (%v)", got, err)
 			}
 		})
 	}
+}
+
+// Aider's read entry is a JSON-quoted path, so a home that JSON escapes
+// (Windows backslashes, or & here) must still be recognised as owned.
+// C:\Users\me -> "C:\\Users\\me"; /tmp/a&b -> "/tmp/a\u0026b"
+func TestAiderEscapedHome(t *testing.T) {
+	isolate(t)
+	home := filepath.Join(os.Getenv("HOME"), `a&b\c`)
+	if err := os.Mkdir(home, 0700); err != nil {
+		t.Skipf("escaped home unavailable: %v", err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	name := filepath.Join(home, ".aider.conf.yml")
+	mustWrite(t, name, []byte("model: original\n"))
+	i, err := newInstaller()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := i.manage(installAgents, applyChanges, withoutHook, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	installed, err := os.ReadFile(name)
+	if err != nil || !bytes.Contains(installed, aiderEntry(t, i.home)) {
+		t.Fatalf("Aider was not wired: %s (%v)", installed, err)
+	}
+
+	// An outside edit beside the owned entry survives reinstall and removal.
+	mustWrite(t, name, bytes.Replace(installed, []byte("original"), []byte("edited"), 1))
+	if err := i.manage(installAgents, applyChanges, withoutHook, &bytes.Buffer{}); err != nil {
+		t.Fatalf("reinstall: %v", err)
+	}
+	if err := i.manage(removeAgents, applyChanges, withoutHook, &bytes.Buffer{}); err != nil {
+		t.Fatalf("uninstall: %v", err)
+	}
+	got, err := os.ReadFile(name)
+	if err != nil || string(got) != "model: edited\n" {
+		t.Fatalf("restore: %q (%v)", got, err)
+	}
+	t.Log("escaped-home Aider entry reinstalled and removed")
+}
+
+// aiderEntry is the read entry baton writes: the instruction path, JSON-quoted.
+func aiderEntry(t *testing.T, home string) []byte {
+	t.Helper()
+	entry, err := json.Marshal(filepath.Join(home, ".agents", "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return entry
 }
 
 func mustWrite(t *testing.T, name string, data []byte) {

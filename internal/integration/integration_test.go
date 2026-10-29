@@ -265,7 +265,7 @@ func TestAiderConventions(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(path)
-	if err != nil || !bytes.Contains(data, []byte(".agents/AGENTS.md")) {
+	if err != nil || !bytes.Contains(data, aiderEntry(t, i.home)) {
 		t.Fatalf("Aider was not wired: %s %v", data, err)
 	}
 	if !bytes.Contains(data, []byte("CONVENTIONS.md")) || !bytes.Contains(data, []byte("other notes.md")) {

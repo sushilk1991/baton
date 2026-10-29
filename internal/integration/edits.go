@@ -69,8 +69,14 @@ func (i installer) restoreOwned(e change, data []byte) ([]byte, error) {
 	if bytes.Contains(e.After, []byte(startMarker)) {
 		return undoSnippet(e, data)
 	}
+	// aiderRead writes the path JSON-quoted, so match that form: Windows
+	// backslashes and characters such as & appear escaped in the file.
 	instruction := filepath.Join(i.home, ".agents", "AGENTS.md")
-	if !bytes.Contains(e.After, []byte(instruction)) {
+	entry, err := json.Marshal(instruction)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Contains(e.After, entry) {
 		return nil, errors.New("owned file changed")
 	}
 	restored, err := undoText(e.Before, e.After, data)
