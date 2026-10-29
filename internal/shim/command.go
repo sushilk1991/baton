@@ -23,7 +23,7 @@ const (
 	directoryMode     = 0700
 	fileMode          = 0600
 	executableMode    = 0700
-	usage             = "usage: baton shim install [cmd ...] | uninstall | list"
+	usage             = "usage: baton shim install [cmd ...] | uninstall | list|ls"
 	manifestName      = "shim-manifest.json"
 	lockName          = "shims.lock"
 	chainKey          = "_BATON_SHIM_CHAIN"
@@ -42,6 +42,10 @@ func Run(args []string, out, diagnostics io.Writer) int {
 			return exitFailure
 		}
 		return 0
+	}
+	// ls matches baton cache ls; both spellings list shims.
+	if len(args) == 1 && args[0] == "ls" {
+		args = []string{"list"}
 	}
 	if len(args) == 0 || (args[0] != "install" && args[0] != "uninstall" && args[0] != "list") || (args[0] != "install" && len(args) != 1) {
 		fmt.Fprintln(diagnostics, usage)

@@ -19,3 +19,14 @@ func TestCacheFlagPair(t *testing.T) {
 		}
 	}
 }
+
+// cache and shim accept both list spellings, so neither one is a guess.
+func TestListAliases(t *testing.T) {
+	for _, args := range [][]string{{"cache", "ls"}, {"cache", "list"}, {"shim", "list"}, {"shim", "ls"}} {
+		isolateHome(t)
+		var out, diagnostics bytes.Buffer
+		if code := run(args, &out, &diagnostics); code != exitOK {
+			t.Errorf("%v: exit=%d stderr=%s", args, code, &diagnostics)
+		}
+	}
+}

@@ -12,7 +12,7 @@ import (
 const (
 	exitFailure = 1
 	exitUsage   = 2
-	usage       = "usage: baton cache ls|prune (prune evicts oldest entries to cache.max_size)"
+	usage       = "usage: baton cache ls|list|prune (prune evicts oldest entries to cache.max_size)"
 )
 
 // Run lists cache keys and sizes or enforces the configured least-recently-used cap.
@@ -22,6 +22,10 @@ func Run(args []string, out, diagnostics io.Writer) int {
 			return exitFailure
 		}
 		return 0
+	}
+	// list matches baton shim list; both spellings list entries.
+	if len(args) == 1 && args[0] == "list" {
+		args = []string{"ls"}
 	}
 	if len(args) != 1 || (args[0] != "ls" && args[0] != "prune") {
 		fmt.Fprintln(diagnostics, usage)
