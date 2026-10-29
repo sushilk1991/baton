@@ -172,6 +172,12 @@ func TestHomebrewFormula(t *testing.T) {
 	if err != nil || bytes.Contains(out, []byte("@")) {
 		t.Fatalf("render: %v %s", err, out)
 	}
+
+	// Homebrew scans the version from the URL; an explicit one fails
+	// `brew audit --strict` as redundant.
+	if bytes.Contains(out, []byte("\n  version ")) {
+		t.Fatalf("redundant version line: %s", out)
+	}
 	for _, target := range []string{"darwin_arm64", "darwin_amd64", "linux_arm64", "linux_amd64"} {
 		url := "https://github.com/sushilk1991/baton/releases/download/v1.2.3/baton_" + target + ".tar.gz"
 		if !bytes.Contains(out, []byte(url)) || !bytes.Contains(out, []byte(fmt.Sprintf("%x", sha256.Sum256([]byte(target))))) {
