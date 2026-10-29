@@ -1171,8 +1171,10 @@ skipped using each tool's `--help` lists, and a launched tool's own
 wrappers are stripped (`uv run nice -n 10 whisper`). Payload arguments and executable directory names
 never select a built-in lane. For example, `grep ffmpeg` stays unqueued;
 `npx remotion render` selects render. Matchers the user configures see
-the segment's full unwrapped words, and segments running baton itself
-never take a lane (`baton run` and the hook's own binary). Each
+the segment's full unwrapped words. A segment with any word naming baton,
+or the running binary's own name, never takes a lane (`baton run`,
+`uv run baton run`, a renamed binary). Launchers nest at most eight deep.
+Each
 segment uses configured matcher order; the first matching segment selects
 the whole command's lane. This keeps compound commands intact without
 reserving several lanes. A segment already executing `baton run` is skipped

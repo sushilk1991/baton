@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -253,17 +254,17 @@ func (config *Config) AutoLane(args []string) string {
 	if base == "sh" || base == "bash" || base == "zsh" || base == "cmd" || base == "powershell" || base == "pwsh" {
 		return ""
 	}
-	// baton never queues behind itself, even when a launcher starts it
-	// (uv run baton run): an explicit baton run or hold takes its own lane,
-	// and an outer reservation would let it skip that lane's slots as a
-	// nested job.
-	headWords := commandHead(words)
-	for _, word := range headWords {
-		if programName(word) == "baton" {
+	// baton never queues behind itself under any name, wherever it appears:
+	// uv run baton run, a renamed binary, or uv run baton --version. An
+	// explicit baton run or hold takes its own lane, and an outer
+	// reservation would let it skip that lane's slots as a nested job. A
+	// payload word naming baton (grep baton notes) is skipped too.
+	for _, word := range words {
+		if name := programName(word); name == "baton" || name == selfName() {
 			return ""
 		}
 	}
-	head := strings.Join(headWords, " ")
+	head := strings.Join(commandHead(words), " ")
 	argv := strings.Join(words, " ")
 	for _, rule := range config.rules {
 		text := head
@@ -276,6 +277,16 @@ func (config *Config) AutoLane(args []string) string {
 	}
 	return ""
 }
+
+// selfName is the running baton binary's program name, which differs from
+// baton when it was renamed: /opt/tools/baton-dev -> baton-dev.
+var selfName = sync.OnceValue(func() string {
+	path, err := os.Executable()
+	if err != nil {
+		return "baton"
+	}
+	return programName(path)
+})
 
 // programName is a program's lowercase base name on any OS, without .exe:
 // C:\tools\baton.exe -> baton.

@@ -180,6 +180,27 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"timeout", "--help", "60", "ffmpeg"}, ""},
 		{[]string{"python", "-V", "-m", "whisper"}, ""},
 		{[]string{"python3", "-h", "-m", "whisper"}, ""},
+		// pnpm's shell mode and global config options precede the verb.
+		{[]string{"pnpm", "-c", "exec", "printf chrome"}, ""},
+		{[]string{"pnpm", "--shell-mode", "exec", "printf chrome"}, ""},
+		{[]string{"pnpm", "--store-dir", "/tmp/store", "install"}, "install"},
+		{[]string{"pnpm", "--prefix", "web", "exec", "playwright", "test"}, "render"},
+		{[]string{"yarn", "--cache-folder", "/tmp/cache", "install"}, "install"},
+		{[]string{"micromamba", "-n", "ml", "run", "whisper", "a.wav"}, "ml"},
+		{[]string{"yarn", "exec", "--", "remotion", "render"}, "render"},
+		// - reads a script from stdin; a URL is a script too.
+		{[]string{"uv", "run", "-", "whisper"}, ""},
+		{[]string{"bun", "run", "-", "chrome"}, ""},
+		{[]string{"uv", "run", "https://example.org/chrome-helper.py?raw=1"}, ""},
+		// Inline code stays opaque even when it holds an equals sign.
+		{[]string{"bun", `-econst x=1; console.log("ok")`, "chrome"}, ""},
+		// npm exec's -p is --parseable; npx's is --package. npm clusters
+		// shorthands, and only --color takes always.
+		{[]string{"npm", "exec", "-p", "playwright", "test"}, "render"},
+		{[]string{"npm", "exec", "-yw", "web", "--", "playwright", "test"}, "render"},
+		{[]string{"npm", "exec", "--yes", "always", "playwright"}, ""},
+		// Nested launchers and wrappers still compose.
+		{[]string{"nohup", "uv", "run", "npx", "playwright", "test"}, "render"},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)
@@ -497,8 +518,31 @@ func TestCustomMatchersSeeArgv(t *testing.T) {
 // baton itself never takes a lane, even under a catch-all custom matcher:
 // an explicit baton run or hold manages its own reservation, and an outer
 // one would let the inner run skip its lane's slots as a nested job.
+// Each launcher consumes at least one word, so deep nesting must stay
+// bounded: an MCP explain_lane request can carry 120,000 npx words.
+func TestAutoLaneBoundsNesting(t *testing.T) {
+	settings, err := compile(defaults(12, 36*gib, Paths{CacheDir: t.TempDir()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := make([]string, 120000, 120001)
+	for index := range args {
+		args[index] = "npx"
+	}
+	args = append(args, "ffmpeg")
+	started := time.Now()
+	settings.AutoLane(args)
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("120,000 nested launchers took %s", elapsed)
+	}
+}
+
 func TestAutoLaneSkipsBaton(t *testing.T) {
 	config, err := decode("[lanes.fallback]\nmatchers = ['.*']\n", defaults(1, gib, Paths{CacheDir: t.TempDir()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	self, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,6 +552,9 @@ func TestAutoLaneSkipsBaton(t *testing.T) {
 		{`C:\tools\baton.exe`, "run", "--", "x"},
 		{"uv", "run", "--no-project", "baton", "run", "--lane", "encode", "--", "ffmpeg", "-i", "a", "b"},
 		{"npx", "baton", "run", "--", "x"},
+		{"uv", "run", "baton", "--version"},
+		// The running binary under another name: a renamed baton.
+		{"uv", "run", self, "run", "--lane", "encode", "--", "ffmpeg"},
 	} {
 		if got := config.AutoLane(args); got != "" {
 			t.Errorf("%v = %q, want no lane", args, got)

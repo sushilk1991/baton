@@ -80,13 +80,16 @@ numpy whisper` reads as `uv run whisper`. Other
 arguments never select a built-in lane, so `grep -r llama notes` runs
 immediately. Matchers you
 write see the full space-joined argv after those wrappers; anchor them,
-e.g. `'^make render( |$)'`. baton's own commands never take a lane.
+e.g. `'^make render( |$)'`. A command with any word naming baton, or the
+running baton binary under another name, never takes a lane: `uv run
+baton run ...` reserves only the inner run's lane.
 `baton run`, shims, the Claude hook, and MCP `explain_lane` share these
 rules. Default order is
 encode, render, ml, install, build. Unlisted configured lanes follow in
 lexical order. A custom lane needs an earlier `match_order` entry to beat an
 overlapping built-in. Empty `matchers` disables auto matching for that lane.
-Shell command bodies, scripts, and launchers not listed in
+Shell bodies (`sh -c`, `bash -c`, `env -S`) stay opaque to every matcher;
+use an explicit lane for them. Scripts and launchers not listed in
 [architecture](architecture.md) stay opaque to built-in matchers; use an
 explicit lane or a matcher of your own for them.
 
