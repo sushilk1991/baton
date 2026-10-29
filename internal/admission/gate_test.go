@@ -331,26 +331,23 @@ func TestMemoryCheckedAfterSlotWait(t *testing.T) {
 	results := acquireLater(gate, ticket, &warnings)
 	time.Sleep(2 * maxWait)
 	provider.set(pressure.Critical)
+	critical := time.Now()
 	time.Sleep(10 * time.Millisecond)
-	released := time.Now()
 	if err := held.Release(); err != nil {
 		t.Fatal(err)
-	}
-	select {
-	case got := <-results:
-		if got.lease != nil {
-			_ = got.lease.Release()
-		}
-		t.Fatalf("admitted under critical pressure after a slot wait: %+v %q", got, warnings.String())
-	case <-time.After(maxWait / 2):
 	}
 	got := <-results
 	if got.err != nil || got.lease == nil {
 		t.Fatalf("memory wait never ended: %+v", got)
 	}
 	defer func() { _ = got.lease.Release() }()
-	if waited := time.Since(released); waited < maxWait/2 {
-		t.Fatalf("memory wait %s, want about %s", waited, maxWait)
+
+	// Memory blocks from the first critical probe, so admission comes no
+	// sooner than max_wait after pressure turned critical, however late a
+	// slow runner releases the slot. Had the slot wait spent max_wait, the
+	// job would enter right after the release, about 10ms in.
+	if waited := time.Since(critical); waited < maxWait*9/10 {
+		t.Fatalf("admitted %s after pressure turned critical, want about %s: %q", waited, maxWait, warnings.String())
 	}
 	if !strings.Contains(warnings.String(), "WARNING") || !strings.Contains(warnings.String(), "pressure critical, 6.0 GiB available") {
 		t.Fatalf("missing max_wait warning: %q", warnings.String())
