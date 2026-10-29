@@ -274,6 +274,16 @@ func (config *Config) AutoLane(args []string) string {
 	return ""
 }
 
+// Executable returns the program argv runs after env, sudo, time, and nice
+// wrappers, or "" when there is none or a BATON=off assignment disables it.
+func Executable(args []string) string {
+	words := unwrapCommand(args)
+	if len(words) == 0 {
+		return ""
+	}
+	return words[0]
+}
+
 func builtinPattern(pattern string) bool {
 	for _, builtin := range builtinMatchers {
 		if pattern == builtin {

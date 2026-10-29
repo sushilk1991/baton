@@ -103,9 +103,14 @@ func hookLane(command string, settings *config.Config) string {
 	if len(segments) > 0 && holdPrefix(segments[0]) {
 		return ""
 	}
-	// An explicit reservation protects its segment, not later bare commands:
-	// baton run classifies as baton itself, which no lane matches.
+	// An explicit reservation protects its segment, not later bare commands.
+	// AutoLane skips baton by name; the invoked binary, even renamed
+	// (/opt/tools/baton-dev), is skipped here by its own basename.
+	binary, _ := invokedBinary()
 	for _, segment := range segments {
+		if executable := config.Executable(segment); binary != "" && executable != "" && filepath.Base(executable) == filepath.Base(binary) {
+			continue
+		}
 		if lane := settings.AutoLane(segment); lane != "" {
 			return lane
 		}

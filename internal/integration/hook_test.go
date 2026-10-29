@@ -186,3 +186,34 @@ func TestHookWithoutHold(t *testing.T) {
 	}
 	t.Log("hook passed the command through; init refused both hook flags")
 }
+
+// The invoked baton, even renamed (/opt/tools/baton-dev), manages its own
+// lane. Under a catch-all matcher an outer hold would let its explicit run
+// skip that lane's slots as a nested job, so the hook leaves it alone.
+func TestHookSkipsInvokedBaton(t *testing.T) {
+	isolate(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	t.Setenv("SHELL", "/bin/sh")
+	config := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(config), 0700); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, config, []byte("[lanes.fallback]\nmatchers = ['.*']\n"))
+	binary, err := invokedBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, command := range []string{
+		shellQuote(binary) + " run --lane encode -- ffmpeg -i a b",
+		"env A=1 " + filepath.Base(binary) + " run -- ffmpeg -i a b",
+	} {
+		input, err := json.Marshal(map[string]any{"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": map[string]any{"command": command}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out, diag bytes.Buffer
+		if code := Run([]string{"_hook"}, bytes.NewReader(input), &out, &diag); code != 0 || out.Len() != 0 {
+			t.Errorf("%s: code=%d rewrote %s %s", command, code, &out, &diag)
+		}
+	}
+}
