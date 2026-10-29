@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sushilk1991/baton/internal/admission"
 	"github.com/sushilk1991/baton/internal/pressure"
 	"github.com/sushilk1991/baton/internal/queue"
 )
@@ -217,18 +218,20 @@ func TestSumTree(t *testing.T) {
 	}
 }
 
+// Notices name what a job waits for and are rate limited until that changes.
 func TestNotices(t *testing.T) {
 	var out bytes.Buffer
 	notice := noticeProvider{out: &out, lane: "x"}
-	sample := pressure.Snapshot{Level: pressure.Warn}
-	if err := notice.wait(sample, nil); err != nil {
-		t.Fatal(err)
+	sample := pressure.Snapshot{Level: pressure.Warn, TotalBytes: 36 * gib, AvailableBytes: 2 * gib, SwapTotalBytes: 14 * gib, SwapUsedBytes: 13 * gib}
+	for _, reason := range []admission.WaitReason{admission.WaitMemory, admission.WaitMemory, admission.WaitSlots} {
+		if err := notice.wait(reason, sample, nil); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := notice.wait(sample, nil); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Count(out.String(), "waiting") != 1 {
-		t.Fatalf("not rate limited: %q", out.String())
+	want := "baton: waiting for memory before x (pressure warn · 2.0 GiB available · swap 13.0 GiB/14.0 GiB)\n" +
+		"baton: waiting for a free x slot\n"
+	if out.String() != want {
+		t.Fatalf("notices %q, want %q", out.String(), want)
 	}
 }
 

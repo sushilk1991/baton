@@ -172,7 +172,7 @@ func TestStatusLiveAndStale(t *testing.T) {
 		t.Fatal("reader removed stale job", err)
 	}
 	var out bytes.Buffer
-	if err := printStatus(&out, view, plainOutput); err != nil || !strings.Contains(out.String(), "codex") || !strings.Contains(out.String(), "/repo") || !strings.Contains(out.String(), "claude-code") {
+	if err := printStatus(&out, view, plainOutput); err != nil || !strings.Contains(out.String(), "codex") || !strings.Contains(out.String(), " repo") || !strings.Contains(out.String(), "claude-code") {
 		t.Fatalf("text=%q err=%v", &out, err)
 	}
 	// A malformed live record is an error, while unlocked garbage is ignored.
@@ -235,7 +235,7 @@ func TestHistoryReadAndFilter(t *testing.T) {
 		t.Fatalf("JSONL=%s err=%v", &out, err)
 	}
 	out.Reset()
-	if code := History(nil, &out, &diagnostics); code != 0 || !strings.Contains(out.String(), "frame") || !strings.Contains(out.String(), "codex") || !strings.Contains(out.String(), "/repo") {
+	if code := History(nil, &out, &diagnostics); code != 0 || !strings.Contains(out.String(), "frame") || !strings.Contains(out.String(), "codex") || !strings.Contains(out.String(), " repo") {
 		t.Fatalf("text=%s exit=%d", &out, code)
 	}
 	for _, body := range []string{"{\n", "null\n", "{}\n", "\n"} {
@@ -378,5 +378,49 @@ func TestStatusTextSafety(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "\x1b") || strings.Contains(out.String(), "\nforged") {
 		t.Fatalf("unsafe label: %q", &out)
+	}
+}
+
+// Plain status is read at a glance: binary units, repo names, local time.
+func TestStatusReadable(t *testing.T) {
+	restore := time.Local
+	time.Local = time.FixedZone("TST", 5*3600+1800)
+	t.Cleanup(func() { time.Local = restore })
+	at := time.Date(2026, 10, 29, 12, 18, 23, 0, time.UTC)
+	view := statusView{
+		Time:    at,
+		Memory:  memoryView{Pressure: pressure.Normal, TotalBytes: 36 << 30, AvailableBytes: 10498293760, SwapTotalBytes: 14 << 30, SwapUsedBytes: 13 << 30},
+		Running: []jobView{{jobRecord: jobRecord{Label: "render", Repo: "/Users/someone/Code/Github/baton", Lane: "render", RSSBytes: 1153434}}},
+	}
+	var out bytes.Buffer
+	if err := printStatus(&out, view, plainOutput); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []string{"2026-10-29 17:48:23 TST", "baton ", "1.1 MiB", "9.8 GiB/36.0 GiB", "13.0 GiB/14.0 GiB"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("status lacks %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "/Users/someone") {
+		t.Errorf("status prints the full repo path:\n%s", text)
+	}
+
+	jobs := []jobRecord{
+		{Start: at, End: at.Add(3 * time.Second), Repo: "/Users/someone/Code/app", Lane: "demo", Label: "first"},
+		{Start: at, End: at, Repo: "/Users/someone/Code/app", Lane: "demo", Label: "second", CacheHit: true},
+	}
+	out.Reset()
+	if err := printHistory(&out, jobs, false); err != nil {
+		t.Fatal(err)
+	}
+	text = out.String()
+	for _, want := range []string{"2026-10-29 17:48:26", "CACHE", "hit", " app "} {
+		if !strings.Contains(text, want) {
+			t.Errorf("history lacks %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "false") || strings.Contains(text, "T12:18") {
+		t.Errorf("history keeps raw booleans or UTC stamps:\n%s", text)
 	}
 }

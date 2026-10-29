@@ -269,8 +269,8 @@ func TestWaitObserverFailure(t *testing.T) {
 	}
 	closed := errors.New("notice stream closed")
 	gate := newGate(t, fakeProvider{level: pressure.Warn}, Options{
-		OnWait: func(sample pressure.Snapshot, err error) error {
-			if err != nil || sample.Level != pressure.Warn {
+		OnWait: func(reason WaitReason, sample pressure.Snapshot, err error) error {
+			if reason != WaitMemory || err != nil || sample.Level != pressure.Warn {
 				t.Fatalf("observer sample %+v, %v", sample, err)
 			}
 			return closed
@@ -352,7 +352,7 @@ func TestMemoryCheckedAfterSlotWait(t *testing.T) {
 	if waited := time.Since(released); waited < maxWait/2 {
 		t.Fatalf("memory wait %s, want about %s", waited, maxWait)
 	}
-	if !strings.Contains(warnings.String(), "WARNING") || !strings.Contains(warnings.String(), "critical") {
+	if !strings.Contains(warnings.String(), "WARNING") || !strings.Contains(warnings.String(), "pressure critical, 6.0 GiB available") {
 		t.Fatalf("missing max_wait warning: %q", warnings.String())
 	}
 }
@@ -420,4 +420,33 @@ func (buffer *lockedBuffer) String() string {
 	buffer.mu.Lock()
 	defer buffer.mu.Unlock()
 	return buffer.data.String()
+}
+
+// A budget that runs out while memory recovers must say so; a bare
+// "pressure normal" reads as if the gate were bypassed for no reason.
+func TestWarningNamesRecovery(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &switchProvider{}
+	provider.set(pressure.Warn)
+	gate := newGate(t, provider, Options{MaxWait: 50 * time.Millisecond, PollInterval: time.Millisecond, RecoveryWindow: time.Hour})
+	var warnings lockedBuffer
+	results := acquireLater(gate, ticket, &warnings)
+	time.Sleep(10 * time.Millisecond)
+	provider.set(pressure.Normal)
+	got := <-results
+	if got.err != nil || got.lease == nil {
+		t.Fatalf("not admitted: %+v", got)
+	}
+	defer func() { _ = got.lease.Release() }()
+	if !strings.Contains(warnings.String(), "pressure normal") || !strings.Contains(warnings.String(), "recovery window") {
+		t.Fatalf("warning %q", warnings.String())
+	}
 }

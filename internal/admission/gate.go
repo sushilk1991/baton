@@ -31,6 +31,16 @@ const (
 	GateDisabled
 )
 
+// WaitReason says what a blocked admission attempt is waiting for.
+type WaitReason int
+
+const (
+	// WaitMemory means pressure or memory headroom delays the job.
+	WaitMemory WaitReason = iota
+	// WaitSlots means memory allows the job but its lane has no free slots.
+	WaitSlots
+)
+
 // Options controls a memory wait; zero fields select defaults.
 type Options struct {
 	// MemoryGate can disable memory checks for a configured lightweight lane.
@@ -41,9 +51,9 @@ type Options struct {
 	PollInterval time.Duration
 	// RecoveryWindow requires uninterrupted healthy observations after blocking.
 	RecoveryWindow time.Duration
-	// OnWait observes a blocked retry, including waits after max_wait.
-	// A returned error cancels the wait and relinquishes the ticket.
-	OnWait func(pressure.Snapshot, error) error
+	// OnWait observes a blocked retry and its reason, including waits after
+	// max_wait. A returned error cancels the wait and relinquishes the ticket.
+	OnWait func(WaitReason, pressure.Snapshot, error) error
 	// MarginBytes reserves memory beyond the declared or predicted budget.
 	MarginBytes uint64
 }
@@ -128,7 +138,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			return nil, err
 		}
 		if !ready && !expired {
-			if err := gate.wait(ctx, budget.remaining(gate.options.MaxWait), sample, sampleErr); err != nil {
+			if err := gate.wait(ctx, budget.remaining(gate.options.MaxWait), WaitMemory, sample, sampleErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -139,7 +149,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			lease, err = ticket.TryAcquire()
 		}
 		if errors.Is(err, queue.ErrBusy) {
-			if err := gate.wait(ctx, 0, sample, sampleErr); err != nil {
+			if err := gate.wait(ctx, 0, WaitSlots, sample, sampleErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -150,7 +160,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 		if ready {
 			return lease, nil
 		}
-		err = gate.warn(warnings, sample, sampleErr)
+		err = gate.warn(warnings, sample, sampleErr, state.healthySince)
 		if err == nil {
 			return lease, nil
 		}
@@ -211,9 +221,9 @@ func (state *waitState) ready(snapshot pressure.Snapshot, err error, memory, mar
 
 // wait pauses one poll interval, or less when an unspent memory budget
 // ends sooner; a zero budget is a slot wait and always pauses a full poll.
-func (gate *Gate) wait(ctx context.Context, budget time.Duration, sample pressure.Snapshot, sampleErr error) error {
+func (gate *Gate) wait(ctx context.Context, budget time.Duration, reason WaitReason, sample pressure.Snapshot, sampleErr error) error {
 	if gate.options.OnWait != nil {
-		if err := gate.options.OnWait(sample, sampleErr); err != nil {
+		if err := gate.options.OnWait(reason, sample, sampleErr); err != nil {
 			return err
 		}
 	}
@@ -235,8 +245,15 @@ func (gate *Gate) pause(ctx context.Context, budget time.Duration) error {
 	}
 }
 
-func (gate *Gate) warn(out io.Writer, sample pressure.Snapshot, probeErr error) error {
-	reason := fmt.Sprintf("pressure %s, available %d bytes", sample.Level, sample.AvailableBytes)
+// warn names why memory still blocks: the probe error, the sample, or a
+// healthy sample that has not yet lasted the recovery window, e.g.
+// "pressure normal, 9.8 GiB available; healthy 1.2s of the 2s recovery window".
+func (gate *Gate) warn(out io.Writer, sample pressure.Snapshot, probeErr error, healthySince time.Time) error {
+	reason := fmt.Sprintf("pressure %s, %s available", sample.Level, pressure.FormatBytes(sample.AvailableBytes))
+	if !healthySince.IsZero() {
+		healthy := time.Since(healthySince).Truncate(time.Millisecond)
+		reason += fmt.Sprintf("; healthy %s of the %s recovery window", healthy, gate.options.RecoveryWindow)
+	}
 	if probeErr != nil {
 		reason = probeErr.Error()
 	}

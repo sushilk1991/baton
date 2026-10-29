@@ -81,3 +81,18 @@ func isolateHome(t *testing.T) {
 		t.Setenv(key, t.TempDir())
 	}
 }
+
+// Every human-facing memory figure uses one binary-unit format.
+func TestFormatBytes(t *testing.T) {
+	for _, test := range []struct {
+		value uint64
+		want  string
+	}{
+		{0, "0 B"}, {512, "512 B"}, {1536, "1.5 KiB"}, {1153434, "1.1 MiB"},
+		{10498293760, "9.8 GiB"}, {36 << 30, "36.0 GiB"}, {3 << 40, "3.0 TiB"},
+	} {
+		if got := FormatBytes(test.value); got != test.want {
+			t.Errorf("FormatBytes(%d) = %q, want %q", test.value, got, test.want)
+		}
+	}
+}

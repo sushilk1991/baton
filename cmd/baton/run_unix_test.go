@@ -42,6 +42,9 @@ func TestRunWaitNotices(t *testing.T) {
 	for _, quiet := range []bool{false, true} {
 		t.Run(fmt.Sprint(quiet), func(t *testing.T) {
 			isolateHome(t)
+			// Real pressure on the test host must not decide this slot-wait
+			// test; admission tests cover the memory budget with fakes.
+			writeShimFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton", "config.toml"), "[lanes.x]\nmemory_gate = false\n", 0600)
 			root := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton")
 			q, err := queue.New(root, "x", 1)
 			if err != nil {
@@ -86,9 +89,9 @@ func TestRunWaitNotices(t *testing.T) {
 				t.Fatal(err)
 			}
 			waitCode(t, command, 0)
-			// A slot wait with healthy memory never spends max_wait, so it
-			// ends without the bypass warning even past --max-wait.
-			notice := strings.Contains(stderr.String(), "baton: waiting for x")
+			// A slot wait never spends max_wait, so it ends without the
+			// bypass warning even past --max-wait.
+			notice := strings.Contains(stderr.String(), "baton: waiting for a free x slot")
 			if notice == quiet || strings.Contains(stderr.String(), "WARNING: max_wait") {
 				t.Fatalf("quiet %t, stderr %q", quiet, stderr.String())
 			}

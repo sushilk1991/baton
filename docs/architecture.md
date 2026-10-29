@@ -169,10 +169,11 @@ Policy choices left open by the spec:
 - After any pressure, headroom, or probe failure, require two seconds of
   continuously healthy observations. A bad sample resets this recovery
   window. Initially healthy jobs can enter immediately.
-- Poll every 250 ms. Default `max_wait` is 30 minutes, measured from the
-  start of `Gate.Acquire`, including time waiting for slots. Callers should
-  enqueue and start the gate together. At expiry only the memory check is
-  bypassed; queue priority, order, weight, and slot capacity still apply.
+- Poll every 250 ms. Default `max_wait` is 30 minutes of memory-blocked
+  time: only attempts that memory blocks spend it, never waits for a busy
+  slot. Every attempt probes, so a slot freed after a long wait meets
+  current pressure. At expiry only the memory check is bypassed; queue
+  priority, order, weight, and slot capacity still apply.
 - Failed probes delay admission until recovery or timeout. A timeout emits
   one `WARNING` on admission, including the last probe error or counters.
   A failed warning write releases the lease and returns an error. Ordinary

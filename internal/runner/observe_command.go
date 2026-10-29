@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -20,6 +21,8 @@ import (
 const (
 	watchInterval      = time.Second
 	observationTimeout = 5 * time.Second
+	// Plain output shows local wall time; JSON keeps RFC 3339 UTC.
+	localStamp = "2006-01-02 15:04:05"
 )
 
 type outputMode int
@@ -177,7 +180,7 @@ func printStatus(out io.Writer, view statusView, mode outputMode) error {
 		return err
 	}
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintf(table, "%s\nLANE\tUSED/TOTAL\tCONFIGURED\n", view.Time.Format(time.RFC3339)); err != nil {
+	if _, err := fmt.Fprintf(table, "%s\nLANE\tUSED/TOTAL\tCONFIGURED\n", view.Time.Local().Format(localStamp+" MST")); err != nil {
 		return err
 	}
 	for _, lane := range view.Lanes {
@@ -189,7 +192,7 @@ func printStatus(out io.Writer, view statusView, mode outputMode) error {
 		return err
 	}
 	for _, job := range view.Running {
-		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", cleanText(job.Label), cleanText(job.Phase), cleanText(job.Agent), cleanText(job.Repo), cleanText(job.Lane), durationText(job.RuntimeNanos), byteText(job.RSSBytes), job.PID); err != nil {
+		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", cleanText(job.Label), cleanText(job.Phase), cleanText(job.Agent), repoText(job.Repo), cleanText(job.Lane), durationText(job.RuntimeNanos), pressure.FormatBytes(job.RSSBytes), job.PID); err != nil {
 			return err
 		}
 	}
@@ -197,11 +200,11 @@ func printStatus(out io.Writer, view statusView, mode outputMode) error {
 		return err
 	}
 	for _, job := range view.Queue {
-		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%d\n", cleanText(job.Label), cleanText(job.Agent), cleanText(job.Repo), cleanText(job.Lane), job.Position, durationText(job.WaitNanos), cleanText(job.Priority), job.Weight); err != nil {
+		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%d\n", cleanText(job.Label), cleanText(job.Agent), repoText(job.Repo), cleanText(job.Lane), job.Position, durationText(job.WaitNanos), cleanText(job.Priority), job.Weight); err != nil {
 			return err
 		}
 	}
-	if _, err := fmt.Fprintf(table, "\nRAM available/total\t%s/%s\nSwap used/total\t%s/%s\nPressure\t%s\n", byteText(view.Memory.AvailableBytes), byteText(view.Memory.TotalBytes), byteText(view.Memory.SwapUsedBytes), byteText(view.Memory.SwapTotalBytes), view.Memory.Pressure); err != nil {
+	if _, err := fmt.Fprintf(table, "\nRAM available/total\t%s/%s\nSwap used/total\t%s/%s\nPressure\t%s\n", pressure.FormatBytes(view.Memory.AvailableBytes), pressure.FormatBytes(view.Memory.TotalBytes), pressure.FormatBytes(view.Memory.SwapUsedBytes), pressure.FormatBytes(view.Memory.SwapTotalBytes), view.Memory.Pressure); err != nil {
 		return err
 	}
 	return table.Flush()
@@ -218,11 +221,11 @@ func printHistory(out io.Writer, jobs []jobRecord, asJSON bool) error {
 		return nil
 	}
 	table := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	if _, err := fmt.Fprintln(table, "START\tEND\tWAIT\tEXIT\tPEAK RSS\tLANE\tLABEL\tAGENT\tREPO\tCACHE HIT"); err != nil {
+	if _, err := fmt.Fprintln(table, "START\tEND\tWAIT\tEXIT\tPEAK RSS\tLANE\tLABEL\tAGENT\tREPO\tCACHE"); err != nil {
 		return err
 	}
 	for _, job := range jobs {
-		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%t\n", job.Start.Format(time.RFC3339), job.End.Format(time.RFC3339), durationText(job.WaitNanos), job.ExitCode, byteText(job.PeakRSSBytes), cleanText(job.Lane), cleanText(job.Label), cleanText(job.Agent), cleanText(job.Repo), job.CacheHit); err != nil {
+		if _, err := fmt.Fprintf(table, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", job.Start.Local().Format(localStamp), job.End.Local().Format(localStamp), durationText(job.WaitNanos), job.ExitCode, pressure.FormatBytes(job.PeakRSSBytes), cleanText(job.Lane), cleanText(job.Label), cleanText(job.Agent), repoText(job.Repo), cacheText(job.CacheHit)); err != nil {
 			return err
 		}
 	}
@@ -244,6 +247,17 @@ func durationText(nanos int64) string {
 	return time.Duration(nanos).Truncate(time.Millisecond).String()
 }
 
-func byteText(value uint64) string {
-	return fmt.Sprintf("%.1f MiB", float64(value)/float64(1<<20))
+// repoText shows a repository by name; JSON output keeps the full path.
+func repoText(repo string) string {
+	if repo == "" {
+		return ""
+	}
+	return cleanText(filepath.Base(repo))
+}
+
+func cacheText(hit bool) string {
+	if hit {
+		return "hit"
+	}
+	return "-"
 }
