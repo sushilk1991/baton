@@ -19,7 +19,7 @@ func TestHelp(t *testing.T) {
 				t.Fatalf("exit code = %d, want 0", code)
 			}
 
-			if !strings.Contains(stdout.String(), "Usage: baton") {
+			if !strings.Contains(stdout.String(), "Usage: baton") || !strings.Contains(stdout.String(), "baton <command> -h") {
 				t.Fatalf("help lacks usage: %q", stdout.String())
 			}
 

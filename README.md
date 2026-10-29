@@ -26,7 +26,8 @@ go install github.com/sushilk1991/baton/cmd/baton@latest
 ```
 
 Homebrew covers macOS and Linux (arm64, amd64); the full `sushilk1991/tap/baton`
-name also records Homebrew's tap trust for later upgrades. Windows archives
+name also records Homebrew's tap trust for later upgrades. `baton version`
+prints the installed release. Windows archives
 are on the [releases page](https://github.com/sushilk1991/baton/releases).
 
 To build from a checkout instead, use Go 1.22+ and Make:
@@ -212,6 +213,6 @@ networking; child commands retain their normal network behavior.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for checks and documentation updates,
 [SECURITY.md](SECURITY.md) for reporting vulnerabilities, and
-[CHANGELOG.md](CHANGELOG.md) for unreleased changes.
+[CHANGELOG.md](CHANGELOG.md) for release notes.
 
 Licensed under [Apache-2.0](LICENSE).

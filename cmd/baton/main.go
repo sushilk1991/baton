@@ -41,6 +41,8 @@ Commands:
   init    Preview, install, or remove agent integration
   mcp     Serve read-only tools over stdio
   version Print the installed version
+
+Run baton <command> -h for a command's options.
 `
 )
 

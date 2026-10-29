@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `max_wait` counts only time blocked by memory. Waiting for a busy slot
+  no longer spends it, and memory is checked again when the slot frees.
+- Lanes match executables and dispatcher operations, never arguments:
+  `grep -r llama notes` no longer queues in the ml lane. `baton run`,
+  shims, MCP `explain_lane`, and the Claude hook share one rule.
+- A config that fails to load no longer breaks shimmed tools or
+  hook-held commands; they warn and run unqueued.
+
+### Changed
+
+- `baton version` and `--version` print the installed release.
+- Plain `status` and `history` use binary units, repo names, and local
+  time. Wait notices say whether a job waits for a slot or for memory.
+- Cache hits print the restored output instead of finishing silently.
+- Shimmed commands that match no lane exec the real tool directly;
+  a shimmed `go version` takes about 15 ms instead of 45-57 ms.
+- The Claude hook entry follows `settings.json` indentation.
+- `run`, `status`, `history`, and `hold` print baton usage text, with an
+  example for `run`; a bad flag is reported once. `init` says update or
+  restore for existing files. `cache` and `shim` accept `list` and `ls`.
+
 ## v0.1.0 (2026-10-29)
 
 ### Scheduling and observation
