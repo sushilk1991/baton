@@ -1,5 +1,21 @@
 # Progress
 
+## UX and review fixes, branch ux-fixes (2026-10-29)
+
+Shipped locally (branch ux-fixes, not pushed): fixes for the three bugs
+and every UX issue from hands-on testing of v0.1.0: max_wait spends only
+memory-blocked time; built-in matchers see executables, user matchers
+full argv; shims and holds run unqueued on a broken config; baton
+version; readable status, history, and notices; cache-hit notice; direct
+exec for unmatched shims and a syscall RAM read (shimmed go version
+45-57 ms -> 15 ms); indented hook entry; usage text, init verbs, and
+list/ls aliases. A Codex review found five issues, all fixed.
+
+Verified: see docs/verification.md (UX and review fixes).
+
+Next: owner review, then fast-forward main, push, wait for hosted CI,
+and tag v0.1.1 with a regenerated tap formula.
+
 ## v0.1.0 released (2026-10-29)
 
 Shipped: tag v0.1.0 on 4aa9396 and the published GitHub release (five

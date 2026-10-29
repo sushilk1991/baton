@@ -1,6 +1,32 @@
 Not verified: the retired macos-13 runner, Windows beyond its core test
 suite, live agent loading, and the Linux and Intel macOS Homebrew
-installs.
+installs. Branch ux-fixes has no hosted CI run yet.
+
+## UX and review fixes, branch ux-fixes (2026-10-29)
+
+Hands-on testing of the v0.1.0 Homebrew build, with a private HOME, found
+three bugs and the UX issues listed in CHANGELOG Unreleased. Each bug fix
+started with a failing test. Gates on 4fbef43:
+
+- Linux (instabox, Go 1.27.1, amd64): `make check` exit 0 with
+  golangci-lint v2.15.0 "0 issues", race tests in all 18 packages, and
+  five cross-builds.
+- macOS 27 arm64, Go 1.27: `go test -race ./...` in private HOME/XDG
+  paths, all 18 packages ok.
+- Replayed against a branch build: the README demo under real "warn"
+  pressure (memory notices, then slot notices, warnings only while memory
+  blocked); grep, git, and ls with heavy-tool arguments ran at once with
+  no lane; a broken config.toml left shimmed go and a hook-held command
+  running; a cache hit printed its notice; a config init snapshot kept
+  built-in head matching.
+- Shim overhead, 20 runs of `go version`: v0.1.0 45-57 ms per call,
+  branch 15 ms, unwrapped 7 ms.
+
+A Codex review of a8a9c82..8758ea7 found four issues (explicit baton run
+under a catch-all matcher, launcher operations, user argv matchers,
+unbounded late probes), fixed in f7fc231 and 874bbc3. Its re-review
+confirmed three and found the renamed-binary case of the first, fixed in
+4fbef43 with TestHookSkipsInvokedBaton.
 
 ## v0.1.0 release (2026-10-29)
 
