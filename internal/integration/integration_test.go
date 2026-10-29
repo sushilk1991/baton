@@ -390,3 +390,41 @@ func requireLinks(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Init names what happens to each path: baton's own files are installed
+// or removed, while the user's existing files are updated or restored.
+func TestPlanVerbs(t *testing.T) {
+	isolate(t)
+	t.Setenv("TMPDIR", t.TempDir())
+	requireLinks(t)
+	i, err := newInstaller()
+	if err != nil {
+		t.Fatal(err)
+	}
+	instructions := filepath.Join(i.home, ".claude", "CLAUDE.md")
+	if err := os.MkdirAll(filepath.Dir(instructions), 0700); err != nil {
+		t.Fatal(err)
+	}
+	mustWrite(t, instructions, []byte("# mine\n"))
+	skill := filepath.Join(i.home, ".agents", "skills", "baton", "SKILL.md")
+	for _, step := range []struct {
+		action      operation
+		mode        application
+		user, owned string
+	}{
+		{installAgents, previewChanges, "would update", "would install"},
+		{installAgents, applyChanges, "update", "install"},
+		{removeAgents, previewChanges, "would restore", "would remove"},
+		{removeAgents, applyChanges, "restore", "remove"},
+	} {
+		var out bytes.Buffer
+		if err := i.manage(step.action, step.mode, withoutHook, &out); err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{step.user + " file " + instructions + "\n", step.owned + " file " + skill + "\n"} {
+			if !strings.Contains(out.String(), want) {
+				t.Errorf("output lacks %q:\n%s", want, &out)
+			}
+		}
+	}
+}

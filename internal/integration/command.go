@@ -177,7 +177,7 @@ func (i installer) manage(action operation, mode application, claude hookPolicy,
 	if err != nil {
 		return err
 	}
-	if err := printPlan(planned, "install", out); err != nil {
+	if err := printPlan(planned, installAgents, applyChanges, out); err != nil {
 		return err
 	}
 	// Journal precedes all agent writes. A crash leaves either before or after
@@ -200,7 +200,6 @@ func (i installer) preview(action operation, claude hookPolicy, out io.Writer) e
 	if err := i.validate(journal); err != nil {
 		return err
 	}
-	label := "would uninstall"
 	if action == installAgents {
 		if journal.Removing {
 			return errors.New("interrupted uninstall: run baton init --yes --uninstall first")
@@ -209,18 +208,21 @@ func (i installer) preview(action operation, claude hookPolicy, out io.Writer) e
 		if err != nil {
 			return err
 		}
-		label = "would install"
 	}
-	if err := printPlan(journal, label, out); err != nil {
+	if err := printPlan(journal, action, previewChanges, out); err != nil {
 		return err
 	}
 	_, err = fmt.Fprintln(out, "Preview only; add --yes to apply.")
 	return err
 }
 
-func printPlan(j journal, action string, out io.Writer) error {
+func printPlan(j journal, action operation, mode application, out io.Writer) error {
 	for _, entry := range j.Entries {
-		if _, err := fmt.Fprintf(out, "%s %s %s\n", action, entry.Kind, entry.Path); err != nil {
+		verb := planVerb(action, entry.Existed)
+		if mode == previewChanges {
+			verb = "would " + verb
+		}
+		if _, err := fmt.Fprintf(out, "%s %s %s\n", verb, entry.Kind, entry.Path); err != nil {
 			return err
 		}
 	}
@@ -229,4 +231,18 @@ func printPlan(j journal, action string, out io.Writer) error {
 		return err
 	}
 	return nil
+}
+
+// planVerb names one entry's change: baton's own paths are installed or
+// removed, while a file the user already had is updated or restored.
+func planVerb(action operation, existed bool) string {
+	switch {
+	case action == installAgents && existed:
+		return "update"
+	case action == installAgents:
+		return "install"
+	case existed:
+		return "restore"
+	}
+	return "remove"
 }

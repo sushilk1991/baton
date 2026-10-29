@@ -216,7 +216,7 @@ func (i installer) uninstall(j journal, out io.Writer) error {
 	if err := i.validate(j); err != nil {
 		return err
 	}
-	if err := printPlan(j, "restore", out); err != nil {
+	if err := printPlan(j, removeAgents, applyChanges, out); err != nil {
 		return err
 	}
 	j.Removing = true
