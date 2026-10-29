@@ -57,6 +57,21 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"python", "-W", "ignore", "-m", "pip", "install", "x"}, "install"},
 		{[]string{"python3", "-um", "mlx_whisper"}, "ml"},
 		{[]string{"python", "-c", "import whisper"}, ""},
+		// Other common launchers and wrappers that run a named tool.
+		{[]string{"bunx", "remotion", "render"}, "render"},
+		{[]string{"uv", "tool", "run", "whisper", "a.wav"}, "ml"},
+		{[]string{"pipx", "run", "--spec", "openai-whisper", "whisper", "a.wav"}, "ml"},
+		{[]string{"poetry", "run", "whisper", "a.wav"}, "ml"},
+		{[]string{"conda", "run", "-n", "ml", "whisper", "a.wav"}, "ml"},
+		{[]string{"nohup", "ffmpeg", "-i", "a", "b"}, "encode"},
+		{[]string{"caffeinate", "-i", "-t", "600", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"timeout", "-k", "5", "600", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"yarn", "remotion", "render"}, "render"},
+		{[]string{"pnpm", "playwright", "test"}, "render"},
+		{[]string{"yarn", "add", "playwright"}, ""},
+		{[]string{"bun", "render-chrome.ts"}, ""},
+		{[]string{"nohup", "grep", "llama", "notes"}, ""},
+		{[]string{"timeout", "60"}, ""},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)

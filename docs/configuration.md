@@ -70,9 +70,10 @@ New lanes default to one slot, a memory gate, and a 30-minute memory wait.
 An explicit unconfigured lane also gets one slot. `auto` is reserved.
 
 Regexes use Go's regexp syntax. Built-in matchers see the executable's
-name after `env`, `sudo`, `time`, and `nice` wrappers, plus the operation
-for known dispatchers and launchers: `npm install`, `go build`,
-`npx remotion`, `uv run whisper`, `python -u -m pip install`. Other
+name after `env`, `sudo`, `time`, `nice`, `nohup`, `caffeinate`, and
+`timeout` wrappers, plus the operation for known dispatchers and launchers:
+`npm install`, `go build`, `npx remotion`, `yarn remotion`,
+`uv run whisper`, `pipx run whisper`, `python -u -m pip install`. Other
 arguments never select a built-in lane, so `grep -r llama notes` runs
 immediately. Matchers you
 write see the full space-joined argv after those wrappers; anchor them,

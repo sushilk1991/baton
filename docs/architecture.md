@@ -1151,11 +1151,14 @@ TTY-loss fixtures observe the child stopped before invalidating its tty,
 so an early continuation cannot arrive before the fixture's self-stop.
 
 Hook classification reads literal command segments separated by unquoted
-shell operators. It skips assignments, `sudo`, `time`, `nice`, and `env`,
-including their recognized option values. Only executable basenames and
-known dispatch operations reach built-in matchers: install/build verbs,
-npm-style, `uv run`, and `uvx` launchers, and Python `-m` modules after
-interpreter options. Payload arguments and executable directory names
+shell operators. It skips assignments, `sudo`, `time`, `nice`, `env`,
+`nohup`, `caffeinate`, and `timeout`, including their recognized option
+values and timeout's duration. Only executable basenames and known
+dispatch operations reach built-in matchers: install/build verbs; `npx`,
+`bunx`, npm-style, `uv run`, `uv tool run`, `uvx`, `pipx run`,
+`poetry run`, and `conda run` launchers; a package binary named after
+`pnpm`, `yarn`, or `bun`; and Python `-m` modules after interpreter
+options. Payload arguments and executable directory names
 never select a built-in lane. For example, `grep ffmpeg` stays unqueued;
 `npx remotion render` selects render. Matchers the user configures see
 the segment's full unwrapped words, and segments running baton itself

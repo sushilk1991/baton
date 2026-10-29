@@ -10,6 +10,8 @@ const (
 	launcherShell   = "-c --call"
 	// uv run and uvx options that take a value before the launched tool.
 	uvOptions = "--with --with-editable --with-requirements --from --python -p --project --directory --env-file --extra --group --package --index -C --config-setting"
+	// pipx run, poetry run, and conda run options that take a value.
+	runOptions = "--spec --python --index-url --pip-args -C --directory -P --project -n --name -p --prefix --cwd"
 	// Python interpreter options that take a value, e.g. -W ignore.
 	pythonValues  = "-W -X --check-hash-based-pycs"
 	helpFlag      = "--help"
@@ -57,6 +59,16 @@ func unwrapCommand(words []string) []string {
 			words = commandOptions(words[1:], "-n --adjustment", "")
 		case "env":
 			words = commandOptions(words[1:], "-u -C --unset --chdir --argv0", "-S --split-string")
+		case "nohup":
+			words = commandOptions(words[1:], "", "")
+		case "caffeinate":
+			words = commandOptions(words[1:], "-t -w", "")
+		case "timeout":
+			// The first operand is the duration: timeout -k 5 600 ffmpeg.
+			words = commandOptions(words[1:], "-s -k --signal --kill-after", "")
+			if len(words) > 0 {
+				words = words[1:]
+			}
 		default:
 			if batonValue == batonDisabled {
 				return nil
@@ -103,37 +115,32 @@ func commandHead(words []string) []string {
 
 	// Known dispatchers expose only their executable/module or operation.
 	// Payload arguments never reach built-in regexes, e.g. npm info ffmpeg.
+	// Launchers run a named tool, which keeps its own operation:
+	// npx cargo build, uv run whisper audio.wav, pnpm exec playwright test.
 	base, verb := commandBase(words[0]), words[1]
-	if base == "npx" {
-		target := commandOptions(words[1:], launcherOptions, launcherShell)
-		if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
-			return head
-		}
-		// The launched tool keeps its own operation: npx cargo build.
-		return append(head, commandHead(target)...)
-	}
-	if (base == "npm" || base == "pnpm" || base == "yarn" || base == "bun") && (verb == "exec" || verb == "dlx" || verb == "x") {
-		target := commandOptions(words[2:], launcherOptions, launcherShell)
-		if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
-			return head
-		}
-		return append(append(head, verb), commandHead(target)...)
-	}
-	// uv run and uvx launch a tool as npx does: uv run whisper audio.wav.
-	if base == "uvx" || (base == "uv" && verb == "run") {
-		rest := words[1:]
-		if base == "uv" {
-			head, rest = append(head, verb), words[2:]
-		}
-		target := commandOptions(rest, uvOptions, "")
-		if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
-			return head
-		}
-		return append(head, commandHead(target)...)
+	packageManager := base == "npm" || base == "pnpm" || base == "yarn" || base == "bun"
+	switch {
+	case base == "npx" || base == "bunx":
+		return launched(head, words[1:], launcherOptions, launcherShell)
+	case packageManager && (verb == "exec" || verb == "dlx" || verb == "x"):
+		return launched(append(head, verb), words[2:], launcherOptions, launcherShell)
+	case base == "uvx":
+		return launched(head, words[1:], uvOptions, "")
+	case base == "uv" && verb == "run":
+		return launched(append(head, verb), words[2:], uvOptions, "")
+	case base == "uv" && verb == "tool" && len(words) > 2 && words[2] == "run":
+		return launched(append(head, verb, words[2]), words[3:], uvOptions, "")
+	case (base == "pipx" || base == "poetry" || base == "conda") && verb == "run":
+		return launched(append(head, verb), words[2:], runOptions, "")
 	}
 	// A module keeps its operation too: python -m pip install numpy.
 	if base == "python" || strings.HasPrefix(base, "python3") {
 		return append(head, pythonModule(words[1:])...)
+	}
+	// pnpm, yarn, and bun also run a package binary named first, e.g.
+	// yarn remotion render; their other verbs (add, test) match nothing.
+	if (base == "pnpm" || base == "yarn" || base == "bun") && !strings.HasPrefix(verb, "-") && !scriptCommand(verb) {
+		return append(head, filepath.Base(verb))
 	}
 	switch base {
 	case "npm", "pnpm", "yarn", "bun", "pip", "pip3", "uv", "brew", "cargo", "go":
@@ -142,6 +149,16 @@ func commandHead(words []string) []string {
 		}
 	}
 	return head
+}
+
+// launched appends the head of the tool a launcher runs, after the
+// launcher's own options: npx -y remotion render -> npx remotion.
+func launched(head, rest []string, values, opaque string) []string {
+	target := commandOptions(rest, values, opaque)
+	if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
+		return head
+	}
+	return append(head, commandHead(target)...)
 }
 
 // pythonModule finds -m after interpreter options and returns -m plus the

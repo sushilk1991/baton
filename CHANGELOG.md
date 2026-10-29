@@ -10,6 +10,9 @@
   never arguments: `grep -r llama notes` no longer queues in the ml lane.
   Matchers you write still see the full argv. `baton run`, shims, MCP
   `explain_lane`, and the Claude hook share these rules.
+- Tools started through `nohup`, `caffeinate`, `timeout`, `bunx`,
+  `yarn`/`pnpm`/`bun` package binaries, `uv run`, `uvx`, `pipx run`,
+  `poetry run`, `conda run`, or `python -m` get their tool's lane.
 - A config that fails to load no longer breaks shimmed tools or
   hook-held commands; they warn and run unqueued.
 
