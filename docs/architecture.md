@@ -1154,8 +1154,9 @@ so an early continuation cannot arrive before the fixture's self-stop.
 
 Hook classification reads literal command segments separated by unquoted
 shell operators. It skips assignments and the wrappers `sudo`, `time`,
-`nice`, `env`, `nohup`, `caffeinate`, `timeout`/`gtimeout`, `xvfb-run`,
-`stdbuf`, `ionice`, `arch`, `exec`, and `command` (not `command -v`),
+`nice`, `env`, `cross-env`, `nohup`, `caffeinate`, `timeout`/`gtimeout`,
+`xvfb-run`, `stdbuf`, `ionice`, `arch`, `exec`, and `command` (not
+`command -v`),
 including their recognized option values and timeout's duration. Only
 executable basenames, scoped npm package names, and known dispatch
 operations reach built-in matchers: install/build verbs; `npx`, `bunx`,

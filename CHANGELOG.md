@@ -12,12 +12,12 @@
   Matchers you write still see the full argv. `baton run`, shims, MCP
   `explain_lane`, and the Claude hook share these rules.
 - Tools started through `nohup`, `caffeinate`, `timeout`, `xvfb-run`,
-  `stdbuf`, `ionice`, `arch`, `exec`, `bunx`, scoped packages such as
-  `npx @playwright/test`, `yarn run`, `yarn`/`pnpm`/`bun` package
-  binaries, `uv run`, `uvx`, `pipx run`, `poetry run`, `conda run`, or
-  `python -m` get their tool's lane, also
-  after global options (`uv --directory . run`, `pnpm --filter web exec`)
-  and through nested wrappers (`uv run nice whisper`).
+  `cross-env`, `stdbuf`, `ionice`, `arch`, `exec`, `bunx`, scoped
+  packages such as `npx @playwright/test`, `yarn run`, `yarn`/`pnpm`/`bun`
+  package binaries, `yarn workspaces foreach`, `uv run`, `uvx`,
+  `pipx run`, `poetry run`, `conda run`, or `python -m` get their tool's
+  lane, also after global or npm config options (`uv --directory . run`,
+  `npx --cache DIR`) and through nested wrappers (`uv run nice whisper`).
 - A config that fails to load no longer breaks shimmed tools or
   hook-held commands; they warn and run unqueued.
 

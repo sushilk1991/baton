@@ -11,7 +11,9 @@ import (
 const (
 	launcherOptions = "-p --package"
 	launcherShell   = "-c --call"
-	npmOptions      = launcherOptions + " -w --workspace --prefix"
+	npmOptions      = launcherOptions + " " + npmConfigValues
+	// yarn workspaces foreach options that take a value (yarn 4 docs).
+	yarnForeachOptions = "--from -j --jobs --include --exclude"
 	// npm, pnpm, yarn, and bun run options before the script or binary name.
 	scriptOptions = "-w --workspace --script-shell -F --filter --resume-from --reporter --require --elide-lines --shell --cwd"
 	// uv global options, accepted before or after the operation.
@@ -40,7 +42,7 @@ type dispatcherOptions struct {
 
 var dispatchers = map[string]dispatcherOptions{
 	"uv":     {values: uvGlobals},
-	"npm":    {values: npmOptions + " --registry --cache --userconfig --loglevel"},
+	"npm":    {values: npmOptions},
 	"pnpm":   {values: "-C --dir -F --filter --filter-prod --loglevel --reporter --test-pattern --changed-files-ignore-pattern"},
 	"yarn":   {values: "--cwd"},
 	"bun":    {values: "-r --preload --require --import -F --filter --shell --env-file --cwd -c --config --install --port --conditions --title", opaque: "-e --eval -p --print"},
@@ -99,6 +101,9 @@ func unwrapCommand(words []string) []string {
 			words = commandOptions(words[1:], "-u -C --unset --chdir --argv0", "-S --split-string")
 		case "nohup":
 			words = commandOptions(words[1:], "", "")
+		case "cross-env":
+			// The loop skips its assignments: cross-env A=1 remotion.
+			words = words[1:]
 		case "caffeinate":
 			words = commandOptions(words[1:], "-t -w", "")
 		case "timeout", "gtimeout":
@@ -193,9 +198,17 @@ func commandHead(words []string) []string {
 		return nil
 	}
 	verb := words[1]
-	// yarn workspace NAME runs the rest in one workspace.
+	// yarn workspace NAME runs the rest in one workspace, and yarn
+	// workspaces foreach [options] in each: foreach -A run playwright.
 	if base == "yarn" && verb == "workspace" && len(words) > 3 {
 		words = append([]string{words[0]}, words[3:]...)
+		verb = words[1]
+	}
+	if base == "yarn" && verb == "workspaces" && len(words) > 2 && words[2] == "foreach" {
+		words = append([]string{words[0]}, commandOptions(words[3:], yarnForeachOptions, "")...)
+		if len(words) < 2 {
+			return head
+		}
 		verb = words[1]
 	}
 

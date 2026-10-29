@@ -127,6 +127,17 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"command", "-v", "ffmpeg"}, ""},
 		{[]string{"micromamba", "run", "-n", "ml", "whisper", "a.wav"}, "ml"},
 		{[]string{"mamba", "run", "-n", "ml", "whisper", "a.wav"}, "ml"},
+		// npm config options take values unless npm types them Boolean.
+		{[]string{"npx", "--cache", "/tmp/npm-cache", "playwright", "test"}, "render"},
+		{[]string{"npm", "exec", "--cache", "/tmp/npm-cache", "--", "playwright", "test"}, "render"},
+		{[]string{"npm", "--registry", "https://r.example", "exec", "playwright"}, "render"},
+		{[]string{"npx", "--yes", "--prefer-offline", "playwright", "test"}, "render"},
+		// yarn workspaces foreach runs a yarn command in each workspace.
+		{[]string{"yarn", "workspaces", "foreach", "-A", "run", "playwright", "test"}, "render"},
+		{[]string{"yarn", "workspaces", "foreach", "-j", "4", "--include", "web", "exec", "remotion", "render"}, "render"},
+		{[]string{"yarn", "workspaces", "list"}, ""},
+		{[]string{"npx", "cross-env", "NODE_ENV=production", "remotion", "render"}, "render"},
+		{[]string{"cross-env", "A=1", "ffmpeg", "-i", "a"}, "encode"},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)

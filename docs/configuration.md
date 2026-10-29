@@ -86,7 +86,9 @@ rules. Default order is
 encode, render, ml, install, build. Unlisted configured lanes follow in
 lexical order. A custom lane needs an earlier `match_order` entry to beat an
 overlapping built-in. Empty `matchers` disables auto matching for that lane.
-Shell command bodies remain opaque; use an explicit lane for them.
+Shell command bodies, scripts, and launchers not listed in
+[architecture](architecture.md) stay opaque to built-in matchers; use an
+explicit lane or a matcher of your own for them.
 
 ## Memory admission
 
