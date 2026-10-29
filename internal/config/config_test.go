@@ -72,6 +72,38 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"bun", "render-chrome.ts"}, ""},
 		{[]string{"nohup", "grep", "llama", "notes"}, ""},
 		{[]string{"timeout", "60"}, ""},
+		// Launcher option values come from each tool's --help.
+		{[]string{"uv", "run", "-w", "numpy", "whisper", "a.wav"}, "ml"},
+		{[]string{"uvx", "-c", "constraints.txt", "whisper", "a.wav"}, "ml"},
+		{[]string{"pipx", "run", "--with", "numpy", "whisper", "a.wav"}, "ml"},
+		{[]string{"conda", "run", "-n", "ml", "--cwd", "x", "whisper"}, "ml"},
+		{[]string{"poetry", "run", "-n", "whisper", "a.wav"}, "ml"},
+		{[]string{"bunx", "-p", "@remotion/cli", "remotion", "render"}, "render"},
+		// Global options may precede a dispatcher's operation.
+		{[]string{"uv", "--directory", ".", "run", "whisper", "a.wav"}, "ml"},
+		{[]string{"uv", "-q", "tool", "run", "whisper"}, "ml"},
+		{[]string{"uv", "--directory", ".", "pip", "list"}, ""},
+		{[]string{"npm", "--prefix", "web", "install"}, "install"},
+		{[]string{"npm", "-g", "install", "x"}, "install"},
+		{[]string{"pnpm", "--filter", "web", "exec", "playwright", "test"}, "render"},
+		{[]string{"pnpm", "-C", "web", "remotion", "render"}, "render"},
+		{[]string{"yarn", "workspace", "web", "remotion", "render"}, "render"},
+		{[]string{"bun", "--cwd", "web", "remotion", "render"}, "render"},
+		{[]string{"bun", "-e", "whisper()"}, ""},
+		{[]string{"cargo", "+nightly", "build"}, "build"},
+		{[]string{"go", "-C", "cmd", "build"}, "build"},
+		{[]string{"pip", "--proxy", "http://p", "install", "torch"}, "install"},
+		{[]string{"poetry", "-C", "app", "run", "whisper", "a.wav"}, "ml"},
+		// A launched tool may itself be wrapped: uv run nice whisper.
+		{[]string{"uv", "run", "nice", "-n", "10", "whisper", "a.wav"}, "ml"},
+		{[]string{"poetry", "run", "nohup", "whisper", "a.wav"}, "ml"},
+		{[]string{"uv", "run", "env", "BATON=off", "whisper"}, ""},
+		// Python accepts attached module names and option clusters.
+		{[]string{"python3", "-mmlx_whisper", "a.wav"}, "ml"},
+		{[]string{"python3", "-umlx_whisper", "a.wav"}, "ml"},
+		{[]string{"python3", "-Wignore", "-m", "mlx_whisper"}, "ml"},
+		{[]string{"python3", "-cm", "whisper"}, ""},
+		{[]string{"python3", "--", "whisper.py"}, ""},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)

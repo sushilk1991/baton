@@ -172,7 +172,9 @@ Policy choices left open by the spec:
 - Poll every 250 ms. Default `max_wait` is 30 minutes of memory-blocked
   time: only attempts that memory blocks spend it, never waits for a busy
   slot. Every attempt probes, so a slot freed after a long wait meets
-  current pressure. At expiry only the memory check is bypassed; queue
+  current pressure. A probe never outlasts the unspent budget (one second
+  once it is spent), and a pause that spends it ends the memory wait
+  without another probe. At expiry only the memory check is bypassed; queue
   priority, order, weight, and slot capacity still apply.
 - Failed probes delay admission until recovery or timeout. A timeout emits
   one `WARNING` on admission, including the last probe error or counters.
@@ -1158,7 +1160,11 @@ dispatch operations reach built-in matchers: install/build verbs; `npx`,
 `bunx`, npm-style, `uv run`, `uv tool run`, `uvx`, `pipx run`,
 `poetry run`, and `conda run` launchers; a package binary named after
 `pnpm`, `yarn`, or `bun`; and Python `-m` modules after interpreter
-options. Payload arguments and executable directory names
+options, attached (`-mmlx_whisper`) or not. Dispatcher global options
+(`uv --directory . run`, `pnpm --filter web exec`, `cargo +nightly
+build`) and launcher options that take a value (`uv run -w numpy`) are
+skipped using each tool's `--help` lists, and a launched tool's own
+wrappers are stripped (`uv run nice -n 10 whisper`). Payload arguments and executable directory names
 never select a built-in lane. For example, `grep ffmpeg` stays unqueued;
 `npx remotion render` selects render. Matchers the user configures see
 the segment's full unwrapped words, and segments running baton itself

@@ -246,7 +246,7 @@ func TestQuietKeepsMaxWaitWarning(t *testing.T) {
 	opts.quiet, opts.maxWait = true, 20*time.Millisecond
 	opts.gate.PollInterval = time.Millisecond
 	opts.provider = &nestedPressure{samples: []pressure.Snapshot{{Level: pressure.Warn, TotalBytes: 8 * gib, AvailableBytes: 6 * gib}}}
-	var stderr bytes.Buffer
+	var stderr lockedBuffer
 	code, err := runJob(context.Background(), opts, streams{nil, io.Discard, &stderr})
 	if err != nil || code != 0 {
 		t.Fatalf("code %d, error %v", code, err)
@@ -254,6 +254,25 @@ func TestQuietKeepsMaxWaitWarning(t *testing.T) {
 	if !strings.Contains(stderr.String(), "WARNING: max_wait") || strings.Contains(stderr.String(), "waiting for") {
 		t.Fatalf("quiet stderr %q", stderr.String())
 	}
+}
+
+// lockedBuffer takes the child's stderr, copied by exec's goroutine, and
+// baton's own notices from monitor at the same time.
+type lockedBuffer struct {
+	mu   sync.Mutex
+	data bytes.Buffer
+}
+
+func (buffer *lockedBuffer) Write(data []byte) (int, error) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.data.Write(data)
+}
+
+func (buffer *lockedBuffer) String() string {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.data.String()
 }
 
 func TestStateRoot(t *testing.T) {

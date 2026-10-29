@@ -481,6 +481,49 @@ func TestLateProbeIsBounded(t *testing.T) {
 	}
 }
 
+// A pause that spends max_wait ends the memory wait. Probing again would
+// give that probe a fresh timeout and admit the job up to a poll late.
+func TestPauseSpendsMaxWait(t *testing.T) {
+	isolateHome(t)
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const maxWait = 200 * time.Millisecond
+	gate := newGate(t, &warnThenBlock{}, Options{MaxWait: maxWait, PollInterval: maxWait})
+	var warnings lockedBuffer
+	started := time.Now()
+	lease, err := gate.Acquire(context.Background(), ticket, 0, &warnings)
+	elapsed := time.Since(started)
+	if err != nil || lease == nil {
+		t.Fatalf("not admitted: %v", err)
+	}
+	defer func() { _ = lease.Release() }()
+	if elapsed > maxWait*3/2 {
+		t.Fatalf("admitted after %s; max_wait is %s", elapsed, maxWait)
+	}
+	if !strings.Contains(warnings.String(), "pressure warn") {
+		t.Fatalf("warning %q", warnings.String())
+	}
+}
+
+// warnThenBlock answers its first probe at once with warn pressure, then
+// blocks like blockingProvider.
+type warnThenBlock struct {
+	calls atomic.Int32
+}
+
+func (provider *warnThenBlock) Sample(ctx context.Context) (pressure.Snapshot, error) {
+	if provider.calls.Add(1) == 1 {
+		return pressure.Snapshot{Level: pressure.Warn, TotalBytes: 8 << 30, AvailableBytes: 6 << 30}, nil
+	}
+	return blockingProvider{}.Sample(ctx)
+}
+
 // blockingProvider honors only cancellation, as the Provider contract allows.
 type blockingProvider struct{}
 

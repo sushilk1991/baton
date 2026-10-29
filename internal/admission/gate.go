@@ -131,7 +131,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 		ready := true
 		if gated {
 			probed := time.Now()
-			sample, sampleErr = gate.probe(ctx, budget.remaining(gate.options.MaxWait))
+			sample, sampleErr = gate.probe(ctx, budget.left(gate.options.MaxWait, probed))
 			now := time.Now()
 			ready = state.ready(sample, sampleErr, memory, gate.options.MarginBytes, gate.options.RecoveryWindow, now)
 			budget.observe(ready, probed, now)
@@ -144,7 +144,14 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			if err := gate.wait(ctx, budget.remaining(gate.options.MaxWait), WaitMemory, sample, sampleErr); err != nil {
 				return nil, err
 			}
-			continue
+
+			// A pause that spends the rest of max_wait ends the memory wait;
+			// another probe would get a fresh timeout and admit the job late.
+			now := time.Now()
+			if budget.left(gate.options.MaxWait, now) > 0 {
+				continue
+			}
+			budget.observe(false, now, now)
 		}
 
 		// A nested job has no ticket and must never take another lane's slots.
@@ -202,6 +209,15 @@ func (budget *memoryBudget) observe(ready bool, probed, now time.Time) {
 
 func (budget *memoryBudget) remaining(maxWait time.Duration) time.Duration {
 	return maxWait - budget.spent
+}
+
+// left is the unspent budget at now, including a pause after a blocked
+// probe that observe has not charged yet.
+func (budget *memoryBudget) left(maxWait time.Duration, now time.Time) time.Duration {
+	if budget.blocked {
+		return budget.remaining(maxWait) - now.Sub(budget.last)
+	}
+	return budget.remaining(maxWait)
 }
 
 func (state *waitState) ready(snapshot pressure.Snapshot, err error, memory, margin uint64, recovery time.Duration, now time.Time) bool {
