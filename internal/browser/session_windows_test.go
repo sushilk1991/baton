@@ -12,8 +12,6 @@ import (
 	"github.com/sushilk1991/baton/internal/lockfile"
 )
 
-const sharingViolation = syscall.Errno(32)
-
 // While the supervisor holds its lifetime lock, Windows can refuse to open
 // session.json for a moment: mid-rename it is a sharing violation, and once
 // removed while another handle (a virus scan) has it open it stays

@@ -29,3 +29,6 @@ func endGroup(command *exec.Cmd, mode ending) {
 	}
 	_ = syscall.Kill(-command.Process.Pid, signal)
 }
+
+// sessionBusy is Windows-only: Unix rename and unlink never block an open.
+func sessionBusy(error) bool { return false }

@@ -170,11 +170,12 @@ func acquire(ctx context.Context, path string) (*lockfile.Lock, error) {
 
 func observeReady(ctx context.Context, root string) (session, snapshot, error) {
 	// Startup and shutdown briefly hold the lifetime lock without a session,
-	// or with a session whose control port is closing. Reobserve until
-	// ownership settles; corrupt metadata still fails at once.
+	// with a session Windows will not open yet, or with a session whose
+	// control port is closing. Reobserve until ownership settles; corrupt
+	// metadata still fails at once.
 	for {
 		s, view, err := observe(root)
-		if !errors.Is(err, os.ErrNotExist) && !transport(err) {
+		if !errors.Is(err, os.ErrNotExist) && !sessionBusy(err) && !transport(err) {
 			return s, view, err
 		}
 
