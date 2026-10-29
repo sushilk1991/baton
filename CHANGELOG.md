@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.1 (2026-10-29)
 
 ### Fixed
 
@@ -18,6 +18,9 @@
   `pipx run`, `poetry run`, `conda run`, or `python -m` get their tool's
   lane, also after global or npm config options (`uv --directory . run`,
   `npx --cache DIR`) and through nested wrappers (`uv run nice whisper`).
+- A command that runs baton, even through a launcher or under a renamed
+  or aliased binary, takes no outer lane, so an inner `baton run` keeps
+  its own lane's slots.
 - A config that fails to load no longer breaks shimmed tools or
   hook-held commands; they warn and run unqueued.
 
