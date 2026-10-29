@@ -154,3 +154,32 @@ func TestBrokenConfigRunsUnqueued(t *testing.T) {
 		t.Fatalf("hold output: %q", held)
 	}
 }
+
+// A shimmed call that no lane matches execs the real tool directly: no
+// job record, history row, or memory sampling slows npm test or go vet.
+func TestShimUnmatchedDirect(t *testing.T) {
+	isolateShim(t)
+	baton := buildShimCLI(t)
+	realDir := t.TempDir()
+	writeShimFile(t, filepath.Join(realDir, "npm"), "#!/bin/sh\nprintf \"$1\"\n", 0700)
+	t.Setenv("PATH", realDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	shimCLI(t, baton, 0, "shim", "install", "npm")
+	// Real pressure on the test host must not delay the matched install.
+	writeShimFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton", "config.toml"), "[lanes.install]\nmemory_gate = false\n", 0600)
+	shim := filepath.Join(os.Getenv("XDG_DATA_HOME"), "baton", "shims", "npm")
+	history := filepath.Join(os.Getenv("XDG_STATE_HOME"), "baton", "history.jsonl")
+
+	if got := shimCLI(t, shim, 0, "test"); got != "test" {
+		t.Fatalf("unmatched output %q", got)
+	}
+	if _, err := os.Stat(history); !os.IsNotExist(err) {
+		t.Fatalf("unmatched call recorded history: %v", err)
+	}
+	if got := shimCLI(t, shim, 0, "install"); got != "install" {
+		t.Fatalf("matched output %q", got)
+	}
+	data, err := os.ReadFile(history)
+	if err != nil || !strings.Contains(string(data), `"lane":"install"`) {
+		t.Fatalf("matched call history %s (%v)", data, err)
+	}
+}

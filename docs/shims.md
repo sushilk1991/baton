@@ -55,8 +55,9 @@ scheduling and history:
 | `ffmpeg` | `-f null` |
 
 Configure regex arrays in `[shims.fast_paths]` to change these rules. A
-nonmatching invocation uses auto classification; unmatched commands execute
-without a lane. Shims preserve argument boundaries and inherited stdio.
+nonmatching invocation uses auto classification. A command no lane matches,
+such as `npm test`, execs the real tool directly with no history row. Shims
+preserve argument boundaries and inherited stdio.
 
 ## Whole-command reservations
 

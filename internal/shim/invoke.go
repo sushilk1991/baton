@@ -59,10 +59,15 @@ func invoke(name string, args []string) (int, error) {
 	}
 	// wrapper -> resolver -> runner -> queue -> child
 	//                         |
-	//                 fast/off -> direct exec
+	//       fast/off/unmatched -> direct exec
 	// Keep argument boundaries intact; classification uses the real basename.
 	command := append([]string{real}, args...)
 
+	// No lane matches npm test or go vet: exec the tool itself, with no job
+	// record or history, so everyday calls cost only this lookup.
+	if settings.AutoLane(command) == "" {
+		return direct(real, args)
+	}
 	runArgs := append([]string{"--lane", "auto", "--"}, command...)
 	return runner.Run(runArgs, os.Stdin, os.Stdout, os.Stderr), nil
 }
