@@ -40,6 +40,7 @@ func Status(args []string, out, diagnostics io.Writer) int {
 	asJSON := flags.Bool("json", false, "print a JSON snapshot (JSONL with --watch)")
 	line := flags.Bool("line", false, "print one compact status line")
 	watch := flags.Bool("watch", false, "refresh every second until interrupted")
+	setUsage(flags, statusSynopsis, "")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -47,7 +48,7 @@ func Status(args []string, out, diagnostics io.Writer) int {
 		return exitUsage
 	}
 	if flags.NArg() != 0 || (*asJSON && *line) {
-		return reportError(diagnostics, exitUsage, errors.New("usage: baton status [--json | --line] [--watch]"))
+		return reportError(diagnostics, exitUsage, errors.New("usage: "+statusSynopsis))
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -120,6 +121,7 @@ func History(args []string, out, diagnostics io.Writer) int {
 	asJSON := flags.Bool("json", false, "print one JSON record per line")
 	since := flags.String("since", "", "include jobs completed within this duration, e.g. 24h")
 	lane := flags.String("lane", "", "include only this lane")
+	setUsage(flags, historySynopsis, "")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -127,7 +129,7 @@ func History(args []string, out, diagnostics io.Writer) int {
 		return exitUsage
 	}
 	if flags.NArg() != 0 {
-		return reportError(diagnostics, exitUsage, errors.New("usage: baton history [--json] [--since 24h] [--lane L]"))
+		return reportError(diagnostics, exitUsage, errors.New("usage: "+historySynopsis))
 	}
 	cutoff := time.Time{}
 	if *since != "" {

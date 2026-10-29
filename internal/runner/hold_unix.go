@@ -30,6 +30,7 @@ func Hold(args []string, out, diagnostics io.Writer) int {
 	name := flags.String("lane", "", "lane to reserve")
 	pid := flags.Int("pid", 0, "calling shell PID")
 	watch := flags.String("watch", "", "internal shell birth token")
+	setUsage(flags, holdSynopsis, "")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -37,7 +38,7 @@ func Hold(args []string, out, diagnostics io.Writer) int {
 		return exitUsage
 	}
 	if *name == "" || *pid <= 1 || len(flags.Args()) != 0 {
-		fmt.Fprintln(diagnostics, "usage: baton hold --lane L --pid $$")
+		fmt.Fprintln(diagnostics, "usage: "+holdSynopsis)
 		return exitUsage
 	}
 	if os.Getenv("BATON") == "off" {

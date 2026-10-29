@@ -78,6 +78,9 @@ func Run(args []string, in io.Reader, out, diagnostics io.Writer) int {
 	if errors.Is(err, errHelp) {
 		return 0
 	}
+	if errors.Is(err, errReported) {
+		return exitUsage
+	}
 	if err != nil {
 		fmt.Fprintln(diagnostics, "baton:", err)
 		return exitUsage

@@ -73,3 +73,36 @@ func waitCode(t *testing.T, command *exec.Cmd, want int) {
 		t.Fatalf("exit %d, want %d (%v)", code, want, err)
 	}
 }
+
+// Flag-based commands print baton's usage line, --options, and for run an
+// example; a bad flag is reported once, not again after the usage text.
+func TestFlagUsage(t *testing.T) {
+	for _, test := range []struct {
+		command, synopsis string
+	}{
+		{"run", "usage: baton run [options] -- command [args...]\n"},
+		{"status", "usage: baton status [--json | --line] [--watch]\n"},
+		{"history", "usage: baton history [--json] [--since 24h] [--lane L]\n"},
+	} {
+		t.Run(test.command, func(t *testing.T) {
+			isolateHome(t)
+			var stdout, stderr bytes.Buffer
+			if code := run([]string{test.command, "-h"}, &stdout, &stderr); code != 0 {
+				t.Fatalf("help exit %d", code)
+			}
+			if !strings.HasPrefix(stderr.String(), test.synopsis) || !strings.Contains(stderr.String(), "\n  --") || strings.Contains(stderr.String(), "Usage of") {
+				t.Fatalf("help %q", stderr.String())
+			}
+		})
+	}
+
+	isolateHome(t)
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"run", "-h"}, &stdout, &stderr); code != 0 || !strings.Contains(stderr.String(), "example:\n  baton run --lane render") {
+		t.Fatalf("run help lacks an example: %q", stderr.String())
+	}
+	stderr.Reset()
+	if code := run([]string{"run", "--lanes", "x", "--", "true"}, &stdout, &stderr); code != exitUsage || strings.Count(stderr.String(), "flag provided but not defined") != 1 {
+		t.Fatalf("bad flag: exit %d, %q", code, stderr.String())
+	}
+}

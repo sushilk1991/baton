@@ -29,13 +29,18 @@ func parse(args []string, out io.Writer) (options, error) {
 	memory := flags.String("mem", "", "memory budget, e.g. 4G or 512M (binary units)")
 	flags.DurationVar(&opts.maxWait, "max-wait", 0, "maximum memory delay (lane default if omitted)")
 	flags.BoolVar(&opts.quiet, "quiet", false, "silence ordinary waiting notices")
+	setUsage(flags, runSynopsis, runExample)
 	if err := flags.Parse(args); err != nil {
-		return opts, err
+		if errors.Is(err, flag.ErrHelp) {
+			return opts, err
+		}
+		// The flag package already printed the error and the usage text.
+		return opts, fmt.Errorf("%w: %w", errReported, err)
 	}
 	opts.args = flags.Args()
 	opts.priority = queue.Priority(*priority)
 	if len(opts.args) == 0 {
-		return opts, errors.New("usage: baton run [options] -- command [args...]")
+		return opts, errors.New("usage: " + runSynopsis)
 	}
 	if (opts.cacheKey == "") != (opts.output == "") {
 		return opts, errors.New("cache-key and output must be provided together")
