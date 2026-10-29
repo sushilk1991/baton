@@ -86,9 +86,9 @@ path. Uninstall before changing its location or switching hook modes, then
 install again.
 
 The classifier checks executable names in each shell segment, after variable
-assignments and `sudo`, `time`, `nice`, `env`, `nohup`, `caffeinate`, or
-`timeout` wrappers. It recognizes install/build operations, tool launchers
-(`npx`, `bunx`, `pnpm exec`, `uv run`, `uvx`, `pipx run`, `poetry run`,
+assignments and wrappers such as `sudo`, `env`, `timeout`, or `xvfb-run`.
+It recognizes install/build operations, tool launchers (`npx`, `bunx`,
+`pnpm exec`, `yarn run`, `uv run`, `uvx`, `pipx run`, `poetry run`,
 `conda run`), and Python `-m` modules.
 Arguments such as `grep ffmpeg` never select a built-in lane; matchers you
 configure see the segment's full words ([configuration](configuration.md)). The first matching

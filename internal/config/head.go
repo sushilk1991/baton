@@ -12,6 +12,8 @@ const (
 	launcherOptions = "-p --package"
 	launcherShell   = "-c --call"
 	npmOptions      = launcherOptions + " -w --workspace --prefix"
+	// npm, pnpm, yarn, and bun run options before the script or binary name.
+	scriptOptions = "-w --workspace --script-shell -F --filter --resume-from --reporter --require --elide-lines --shell --cwd"
 	// uv global options, accepted before or after the operation.
 	uvGlobals = "--cache-dir --color --allow-insecure-host --directory --project --config-file"
 	// uv run, uv tool run, and uvx options before the launched tool.
@@ -46,10 +48,13 @@ var dispatchers = map[string]dispatcherOptions{
 	"pip3":   {values: pipGlobals},
 	"pipx":   {},
 	"poetry": {values: poetryOptions},
-	"conda":  {},
-	"cargo":  {values: "--color --config -Z -C"},
-	"go":     {values: "-C"},
-	"brew":   {},
+	// mamba and micromamba share conda's run options.
+	"conda":      {},
+	"mamba":      {},
+	"micromamba": {},
+	"cargo":      {values: "--color --config -Z -C"},
+	"go":         {values: "-C"},
+	"brew":       {},
 }
 
 func commandBase(word string) string {
@@ -96,12 +101,25 @@ func unwrapCommand(words []string) []string {
 			words = commandOptions(words[1:], "", "")
 		case "caffeinate":
 			words = commandOptions(words[1:], "-t -w", "")
-		case "timeout":
+		case "timeout", "gtimeout":
 			// The first operand is the duration: timeout -k 5 600 ffmpeg.
 			words = commandOptions(words[1:], "-s -k --signal --kill-after", "")
 			if len(words) > 0 {
 				words = words[1:]
 			}
+		case "xvfb-run":
+			words = commandOptions(words[1:], "-n --server-num -s --server-args -f --auth-file -e --error-file -p --xauth-protocol -w --wait", "")
+		case "stdbuf":
+			words = commandOptions(words[1:], "-i -o -e --input --output --error", "")
+		case "ionice":
+			words = commandOptions(words[1:], "-c -n -p -P -u --class --classdata --pid --pgid --uid", "")
+		case "arch":
+			words = commandOptions(words[1:], "-arch -d -e", "")
+		case "exec":
+			words = commandOptions(words[1:], "-a", "")
+		case "command":
+			// command -v ffmpeg only looks the tool up.
+			words = commandOptions(words[1:], "", "-v -V")
 		default:
 			if batonValue == batonDisabled {
 				return nil
@@ -140,8 +158,13 @@ func commandHead(words []string) []string {
 		return nil
 	}
 
-	// Directory names are not tool names, e.g. /opt/chrome-tools/grep.
-	head := []string{filepath.Base(words[0])}
+	// Directory names are not tool names, e.g. /opt/chrome-tools/grep, but
+	// a scoped npm package keeps its scope: npx @playwright/test.
+	name := filepath.Base(words[0])
+	if strings.HasPrefix(words[0], "@") {
+		name = words[0]
+	}
+	head := []string{name}
 	if len(words) < 2 {
 		return head
 	}
@@ -182,10 +205,14 @@ func commandHead(words []string) []string {
 	// npx cargo build, uv run whisper audio.wav, pnpm exec playwright test.
 	packageManager := base == "npm" || base == "pnpm" || base == "yarn" || base == "bun"
 	switch {
-	case base == "npm" && verb == "exec":
+	case base == "npm" && (verb == "exec" || verb == "x"):
 		return launched(append(head, verb), words[2:], npmOptions, launcherShell)
 	case packageManager && (verb == "exec" || verb == "dlx" || verb == "x"):
 		return launched(append(head, verb), words[2:], launcherOptions, launcherShell)
+	case packageManager && (verb == "run" || verb == "run-script"):
+		// The script or package binary name is the operation:
+		// yarn run --binaries-only playwright test -> yarn run playwright.
+		return launched(append(head, verb), words[2:], scriptOptions, "")
 	case base == "uv" && verb == "run":
 		return launched(append(head, verb), words[2:], uvOptions, "")
 	case base == "uv" && verb == "tool":
@@ -197,7 +224,7 @@ func commandHead(words []string) []string {
 		return launched(append(head, verb), words[2:], pipxOptions, "")
 	case base == "poetry" && verb == "run":
 		return launched(append(head, verb), words[2:], poetryOptions, "")
-	case base == "conda" && verb == "run":
+	case (base == "conda" || base == "mamba" || base == "micromamba") && verb == "run":
 		return launched(append(head, verb), words[2:], condaOptions, "")
 	}
 	// pnpm, yarn, and bun also run a package binary named first, e.g.

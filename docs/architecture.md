@@ -1153,12 +1153,15 @@ TTY-loss fixtures observe the child stopped before invalidating its tty,
 so an early continuation cannot arrive before the fixture's self-stop.
 
 Hook classification reads literal command segments separated by unquoted
-shell operators. It skips assignments, `sudo`, `time`, `nice`, `env`,
-`nohup`, `caffeinate`, and `timeout`, including their recognized option
-values and timeout's duration. Only executable basenames and known
-dispatch operations reach built-in matchers: install/build verbs; `npx`,
-`bunx`, npm-style, `uv run`, `uv tool run`, `uvx`, `pipx run`,
-`poetry run`, and `conda run` launchers; a package binary named after
+shell operators. It skips assignments and the wrappers `sudo`, `time`,
+`nice`, `env`, `nohup`, `caffeinate`, `timeout`/`gtimeout`, `xvfb-run`,
+`stdbuf`, `ionice`, `arch`, `exec`, and `command` (not `command -v`),
+including their recognized option values and timeout's duration. Only
+executable basenames, scoped npm package names, and known dispatch
+operations reach built-in matchers: install/build verbs; `npx`, `bunx`,
+npm-style exec/dlx/x, `uv run`, `uv tool run`, `uvx`, `pipx run`,
+`poetry run`, and `conda`/`mamba`/`micromamba run` launchers; the script
+or binary after npm-style `run`, or a package binary named right after
 `pnpm`, `yarn`, or `bun`; and Python `-m` modules after interpreter
 options, attached (`-mmlx_whisper`) or not. Dispatcher global options
 (`uv --directory . run`, `pnpm --filter web exec`, `cargo +nightly

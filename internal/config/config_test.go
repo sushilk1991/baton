@@ -104,6 +104,29 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"python3", "-Wignore", "-m", "mlx_whisper"}, "ml"},
 		{[]string{"python3", "-cm", "whisper"}, ""},
 		{[]string{"python3", "--", "whisper.py"}, ""},
+		// Scoped packages keep their scope; run names a script or binary.
+		{[]string{"npx", "-y", "@playwright/test", "test"}, "render"},
+		{[]string{"pnpm", "dlx", "@remotion/cli", "render"}, "render"},
+		{[]string{"npx", "playwright@1.48.0", "test"}, "render"},
+		{[]string{"npm", "x", "-w", "web", "--", "playwright", "test"}, "render"},
+		{[]string{"yarn", "run", "--binaries-only", "playwright", "test"}, "render"},
+		{[]string{"yarn", "run", "playwright", "test"}, "render"},
+		{[]string{"npm", "run", "-w", "web", "playwright"}, "render"},
+		{[]string{"bun", "run", "render-chrome.ts"}, ""},
+		{[]string{"npm", "run", "test"}, ""},
+		{[]string{"pnpm", "run", "--filter", "web", "build"}, ""},
+		// More wrappers agents use: headless X, buffering, priority, Rosetta.
+		{[]string{"xvfb-run", "-a", "npx", "playwright", "test"}, "render"},
+		{[]string{"xvfb-run", "-s", "-screen 0 1280x720x24", "chromium"}, "render"},
+		{[]string{"stdbuf", "-oL", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"ionice", "-c", "3", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"arch", "-x86_64", "xcodebuild", "build"}, "build"},
+		{[]string{"gtimeout", "600", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"exec", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"command", "ffmpeg", "-i", "a"}, "encode"},
+		{[]string{"command", "-v", "ffmpeg"}, ""},
+		{[]string{"micromamba", "run", "-n", "ml", "whisper", "a.wav"}, "ml"},
+		{[]string{"mamba", "run", "-n", "ml", "whisper", "a.wav"}, "ml"},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)
