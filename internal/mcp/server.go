@@ -9,12 +9,13 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/sushilk1991/baton/internal/buildinfo"
 )
 
 const (
 	rpcVersion      = "2.0"
 	protocolVersion = "2025-11-25"
-	serverVersion   = "0.1.0"
 	maxMessage      = 1 << 20
 	parseError      = -32700
 	invalidRequest  = -32600
@@ -157,7 +158,7 @@ func (s *server) initialize(req request) *response {
 		}
 	}
 	s.initialized = true
-	return success(req.ID, map[string]any{"protocolVersion": version, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "baton", "version": serverVersion}})
+	return success(req.ID, map[string]any{"protocolVersion": version, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "baton", "version": strings.TrimPrefix(buildinfo.Version(), "v")}})
 }
 
 func decodeParams(raw json.RawMessage, target any) error {

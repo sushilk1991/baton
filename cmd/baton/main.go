@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/sushilk1991/baton/internal/browser"
+	"github.com/sushilk1991/baton/internal/buildinfo"
 	"github.com/sushilk1991/baton/internal/cache"
 	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/gc"
@@ -39,6 +40,7 @@ Commands:
   browser Manage the shared headless browser
   init    Preview, install, or remove agent integration
   mcp     Serve read-only tools over stdio
+  version Print the installed version
 `
 )
 
@@ -54,6 +56,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	if len(args) == 1 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
 		return printHelp(stdout)
+	}
+
+	if len(args) == 1 && (args[0] == "version" || args[0] == "--version") {
+		if _, err := fmt.Fprintln(stdout, "baton", buildinfo.Version()); err != nil {
+			return exitFailure
+		}
+		return exitOK
 	}
 
 	// Keep command execution below argument dispatch.

@@ -90,3 +90,19 @@ func isolateHome(t *testing.T) {
 	t.Setenv("BATON", "")
 	t.Setenv("USERPROFILE", os.Getenv("HOME"))
 }
+
+// Users and bug reports need the installed release, e.g. "baton v0.1.0".
+func TestVersion(t *testing.T) {
+	for _, args := range [][]string{{"version"}, {"--version"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			isolateHome(t)
+			var stdout, stderr bytes.Buffer
+			if code := run(args, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+				t.Fatalf("exit %d, stderr %q", code, stderr.String())
+			}
+			if !strings.HasPrefix(stdout.String(), "baton ") || strings.TrimSpace(stdout.String()) == "baton" {
+				t.Fatalf("version output %q", stdout.String())
+			}
+		})
+	}
+}
