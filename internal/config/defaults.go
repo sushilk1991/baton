@@ -134,9 +134,9 @@ func slotsFor(name string, cores int, ram uint64) int {
 func systemDefaults(paths Paths) document {
 	ctx, cancel := context.WithTimeout(context.Background(), hardwareProbe)
 	defer cancel()
-	sample, err := pressure.System().Sample(ctx)
+	total, err := pressure.TotalBytes(ctx)
 	if err != nil {
 		return defaults(runtime.NumCPU(), gib, paths)
 	}
-	return defaults(runtime.NumCPU(), sample.TotalBytes, paths)
+	return defaults(runtime.NumCPU(), total, paths)
 }
