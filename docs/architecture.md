@@ -1182,7 +1182,8 @@ without hiding later bare heavy commands.
 
 Literal `BATON=off` assignments bypass their segment, including through
 `env`; the last assignment wins. Later segments are still classified.
-The hook skips exact `--help` and `--version` arguments, Ollama's
+Built-in matchers skip exact `--help` and `--version` arguments (and
+`-V`/`-h` for uv, `-v`/`-h` for npm, pnpm, and yarn), Ollama's
 `list`/`ls`/`ps`/`show`/`help`, `uv pip list`/`show`/`freeze`/`check`/`tree`,
 and xcodebuild's `-help`, `-version`, `-list`, `-showsdks`,
 `-showdestinations`, and `-showBuildSettings`, including launcher targets.

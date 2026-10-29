@@ -201,6 +201,17 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"npm", "exec", "--yes", "always", "playwright"}, ""},
 		// Nested launchers and wrappers still compose.
 		{[]string{"nohup", "uv", "run", "npx", "playwright", "test"}, "render"},
+		// pnpm and Yarn parse options as npm does: explicit Boolean values.
+		{[]string{"pnpm", "--child-concurrency", "1", "install"}, "install"},
+		{[]string{"pnpm", "--network-concurrency", "1", "install"}, "install"},
+		{[]string{"pnpm", "--color", "false", "exec", "playwright", "test"}, "render"},
+		{[]string{"pnpm", "-rc", "exec", "printf chrome"}, ""},
+		{[]string{"yarn", "--production", "false", "install"}, "install"},
+		// Short version and help flags print only.
+		{[]string{"uvx", "-V", "whisper"}, ""},
+		{[]string{"uv", "run", "-h", "whisper"}, ""},
+		{[]string{"pnpm", "-v", "exec", "playwright"}, ""},
+		{[]string{"npx", "-v", "playwright"}, ""},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)
@@ -535,6 +546,24 @@ func TestAutoLaneBoundsNesting(t *testing.T) {
 	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("120,000 nested launchers took %s", elapsed)
 	}
+}
+
+// The hook may run through a symlink alias whose name differs from the
+// binary's own: both names must skip a lane.
+func TestOwnNames(t *testing.T) {
+	names := ownNames("/opt/bin/queue", "/usr/local/Cellar/baton/0.1.1/bin/baton")
+	if !slicesContain(names, "queue") || !slicesContain(names, "baton") {
+		t.Fatalf("names %v", names)
+	}
+}
+
+func slicesContain(list []string, want string) bool {
+	for _, item := range list {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestAutoLaneSkipsBaton(t *testing.T) {

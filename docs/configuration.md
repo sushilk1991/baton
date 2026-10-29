@@ -88,10 +88,12 @@ rules. Default order is
 encode, render, ml, install, build. Unlisted configured lanes follow in
 lexical order. A custom lane needs an earlier `match_order` entry to beat an
 overlapping built-in. Empty `matchers` disables auto matching for that lane.
-Shell bodies (`sh -c`, `bash -c`, `env -S`) stay opaque to every matcher;
-use an explicit lane for them. Scripts and launchers not listed in
-[architecture](architecture.md) stay opaque to built-in matchers; use an
-explicit lane or a matcher of your own for them.
+A command that is itself a shell (`sh -c`, `bash -c`, `env -S`) takes no
+lane from any matcher; use an explicit lane for it. Built-in matchers also
+skip shell bodies under launchers (`uv run sh -c`), queries such as
+`--version`, scripts, and launchers not listed in
+[architecture](architecture.md). Matchers you write still see those
+commands' full argv, so one can opt them into a lane.
 
 ## Memory admission
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -260,7 +261,7 @@ func (config *Config) AutoLane(args []string) string {
 	// reservation would let it skip that lane's slots as a nested job. A
 	// payload word naming baton (grep baton notes) is skipped too.
 	for _, word := range words {
-		if name := programName(word); name == "baton" || name == selfName() {
+		if name := programName(word); name == "baton" || slices.Contains(selfNames(), name) {
 			return ""
 		}
 	}
@@ -278,15 +279,20 @@ func (config *Config) AutoLane(args []string) string {
 	return ""
 }
 
-// selfName is the running baton binary's program name, which differs from
-// baton when it was renamed: /opt/tools/baton-dev -> baton-dev.
-var selfName = sync.OnceValue(func() string {
+// selfNames are the running baton binary's program names: the name it was
+// invoked by, which a symlink alias changes (/opt/bin/queue), and the file
+// it runs from, which a rename changes (/opt/tools/baton-dev).
+var selfNames = sync.OnceValue(func() []string {
 	path, err := os.Executable()
 	if err != nil {
-		return "baton"
+		path = "baton"
 	}
-	return programName(path)
+	return ownNames(os.Args[0], path)
 })
+
+func ownNames(invoked, executable string) []string {
+	return []string{programName(invoked), programName(executable)}
+}
 
 // programName is a program's lowercase base name on any OS, without .exe:
 // C:\tools\baton.exe -> baton.

@@ -17,8 +17,10 @@ const (
 	// pnpm options that take a value, before or after exec, dlx, and run,
 	// including npm's long config options (--prefix) and pnpm's directory
 	// settings; -w is pnpm's --workspace-root flag, not npm's --workspace.
-	pnpmOptions = "-C --dir -F --filter --filter-prod --loglevel --reporter --resume-from --workspace-concurrency --test-pattern --changed-files-ignore-pattern --allow-build --package --store-dir --virtual-store-dir --modules-dir --lockfile-dir --global-dir --global-bin-dir --cache-dir --state-dir --node-linker --package-import-method " + npmLongValues
+	pnpmOptions = "-C --dir -F --filter --filter-prod --loglevel --reporter --resume-from --workspace-concurrency --test-pattern --changed-files-ignore-pattern --allow-build --package --store-dir --virtual-store-dir --modules-dir --lockfile-dir --global-dir --global-bin-dir --cache-dir --state-dir --node-linker --package-import-method --child-concurrency --network-concurrency --resolution-mode " + npmLongValues
 	pnpmShell   = "-c --shell-mode"
+	// npm, pnpm, and yarn print their version or help for these shorthands.
+	npmQueries = "-v -h -?"
 	// Yarn Classic global options with a required value (src/cli/index.js).
 	yarnGlobals = "--cwd --use-yarnrc --link-folder --global-folder --modules-folder --preferred-cache-folder --cache-folder --mutex --proxy --https-proxy --registry --network-concurrency --network-timeout --otp"
 	// bun options that take a value; --inspect's value is only attached.
@@ -42,7 +44,9 @@ const (
 	mambaOptions = condaOptions + " " + mambaGlobals + " -a --attach -e --env --label"
 	// uv run -s and --script read the target as a script, whatever its
 	// name, and - reads one from stdin.
-	uvScript = "-s --script --gui-script -"
+	uvScript = "-s --script --gui-script - " + uvQueries
+	// uv and uvx print their version or help for these.
+	uvQueries = "-V -h"
 	// maxNesting bounds launchers inside launchers, so a request holding
 	// npx 120,000 times stays linear: nohup uv run npx playwright is 3.
 	maxNesting = 8
@@ -64,7 +68,8 @@ type dispatcherOptions struct {
 }
 
 var dispatchers = map[string]dispatcherOptions{
-	"uv":         {values: uvGlobals},
+	"uv":         {values: uvGlobals, opaque: uvQueries},
+	"npm":        {values: npmOptions},
 	"pnpm":       {values: pnpmOptions, opaque: pnpmShell},
 	"yarn":       {values: yarnGlobals},
 	"bun":        {values: bunOptions, opaque: bunInline},
@@ -222,7 +227,8 @@ func skipOptions(words []string, values, opaque string, style optionStyle) []str
 	return nil
 }
 
-// npmCommand skips npm's options as its parser, nopt, does: an option
+// npmCommand skips npm's options as its parser, nopt, does, and pnpm's and
+// Yarn Classic's, which read options the same way: an option
 // listed in values takes the next word, a Boolean one takes an explicit
 // value such as false (npm exec --yes false -- playwright), and a cluster
 // of shorthands ends at one that takes a value (-yw web).
@@ -235,7 +241,7 @@ func npmCommand(words []string, values, opaque string) []string {
 		if !strings.HasPrefix(option, "-") {
 			return words
 		}
-		if option == helpFlag || option == versionFlag {
+		if option == helpFlag || option == versionFlag || listed(npmQueries, option) {
 			return nil
 		}
 		name, _, attached := strings.Cut(option, "=")
@@ -255,7 +261,11 @@ func npmCommand(words []string, values, opaque string) []string {
 			continue
 		}
 		for at := 1; at < len(option); at++ {
-			if listed(values, "-"+option[at:at+1]) {
+			letter := "-" + option[at:at+1]
+			if listed(opaque, letter) {
+				return nil
+			}
+			if listed(values, letter) {
 				if at+1 == len(option) {
 					words = words[1:]
 				}
@@ -303,7 +313,7 @@ func nestedHead(words []string, depth int) []string {
 	case "bunx":
 		return launched(head, commandOptions(words[1:], launcherOptions, ""), depth)
 	case "uvx":
-		return launched(head, commandOptions(words[1:], uvOptions, ""), depth)
+		return launched(head, commandOptions(words[1:], uvOptions, uvQueries), depth)
 	}
 
 	// Global options precede a dispatcher's operation and never reach
@@ -347,9 +357,9 @@ func nestedHead(words []string, depth int) []string {
 	case base == "npm" && run:
 		return launched(launch, npmCommand(rest, npmOptions, ""), depth)
 	case base == "pnpm" && (verb == "exec" || verb == "dlx"):
-		return launched(launch, commandOptions(rest, pnpmOptions, pnpmShell), depth)
+		return launched(launch, npmCommand(rest, pnpmOptions, pnpmShell), depth)
 	case base == "pnpm" && run:
-		return launched(launch, commandOptions(rest, pnpmOptions, ""), depth)
+		return launched(launch, npmCommand(rest, pnpmOptions, ""), depth)
 	case base == "yarn" && verb == "exec":
 		if len(rest) > 0 && rest[0] == "--" {
 			rest = rest[1:]
@@ -371,7 +381,7 @@ func nestedHead(words []string, depth int) []string {
 	case base == "uv" && verb == "tool":
 		tool := commandOptions(rest, uvGlobals, "")
 		if len(tool) > 0 && tool[0] == "run" {
-			return launched(append(launch, tool[0]), commandOptions(tool[1:], uvOptions, ""), depth)
+			return launched(append(launch, tool[0]), commandOptions(tool[1:], uvOptions, uvQueries), depth)
 		}
 	case base == "pipx" && verb == "run":
 		return launched(launch, commandOptions(rest, pipxOptions, ""), depth)
@@ -400,10 +410,10 @@ func nestedHead(words []string, depth int) []string {
 // dispatcherArgs drops a known dispatcher's global options and returns
 // the operation and its arguments: cargo +nightly -Z x build -> build.
 func dispatcherArgs(base string, args []string) []string {
-	if base == "npm" {
-		return npmCommand(args, npmOptions, "")
-	}
 	options, known := dispatchers[base]
+	if base == "npm" || base == "pnpm" || base == "yarn" {
+		return npmCommand(args, options.values, options.opaque)
+	}
 	if !known {
 		return args
 	}
