@@ -22,6 +22,7 @@
 
 - Source installation, quick start, recipes, generated defaults, and a VHS
   demo tape; contribution, conduct, and security-reporting guidance.
-- Native macOS and Linux process/race checks and five cgo-free cross-build
-  targets; hosted CI gates the tag. The Claude Code hook is macOS/Linux
-  only. Stress benchmarks and the recorded demo remain pending.
+- Hosted CI on Linux (amd64, arm64), macOS 26, and Windows core tests,
+  plus five cgo-free cross-build targets. The Claude Code hook is
+  macOS/Linux only. Stress benchmarks and the recorded demo remain
+  pending.

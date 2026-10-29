@@ -1,5 +1,18 @@
 # Progress
 
+## Hosted CI fixes (2026-10-29)
+
+Shipped: main pushed; the first hosted CI run exposed three Windows bugs
+(Aider reinstall, rooted gc patterns, record sharing violations), a
+cmd/baton timeout from per-test cold builds, and Go 1.22 binaries
+aborting on macOS 26. All fixed on ci-fixes.
+
+Verified: run 40822218812 on ba6bb65 passed every runnable job (Linux,
+macOS 26, Windows, lint); macos-13 is retired. See docs/verification.md.
+
+Next: fast-forward main, wait for its CI, tag v0.1.0, publish the
+release, add Formula/baton.rb to sushilk1991/homebrew-tap.
+
 ## Third-review fixes (2026-10-29)
 
 Shipped locally: fixes for all four third-review findings (cross-lane

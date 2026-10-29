@@ -1,5 +1,32 @@
-Not verified: hosted CI, Windows runtime behaviour, and live agent loading.
-Hosted CI gates the v0.1.0 tag. Public installs await owner publication.
+Not verified: the retired macos-13 runner, Windows beyond its core test
+suite, and live agent loading. Public installs await owner publication.
+
+## Hosted CI (2026-10-29)
+
+Run 40822218812 on ba6bb65 passed all nine runnable jobs: ubuntu-latest
+and ubuntu-24.04-arm with Go 1.22 and 1.27 (make check), macos-latest
+(macOS 26) with Go 1.27 (make check), windows-latest with Go 1.22 and
+1.27 (vet, `go test ./...`, build), and golangci-lint v2.15.0. The two
+macos-13 jobs stayed queued because GitHub retired that runner; they
+were cancelled.
+
+The first hosted run, on 1c93656, failed five jobs. Fixes, each checked
+on the runner that failed:
+
+- Windows: Aider reinstall matched the raw instruction path, not the
+  JSON-quoted entry it writes. TestAiderEscapedHome reproduces it on Unix
+  with a home named `a&b\c`.
+- Windows: `/absolute` passed as a relative gc pattern.
+- Windows: concurrent jobs failed to read or replace job records with
+  sharing violations (TestTwentyJobs). Record I/O now retries those
+  errors for up to 2 s; TestReplaceRecordShared and TestReadRecordShared
+  reproduce both collisions.
+- Linux and macOS, Go 1.27: cmd/baton passed go test's 10m default
+  because 30 tests each built baton with a cold Go cache. One shared
+  build cut the package locally, with a cold inner cache, from 143 s to
+  38 s.
+- macOS 26 dyld aborts Go 1.22 binaries ("missing LC_UUID load
+  command"), so macos-latest checks Go 1.27 only.
 
 ## Third-review fixes, final gates (2026-10-29)
 
