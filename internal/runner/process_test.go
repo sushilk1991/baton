@@ -234,7 +234,13 @@ func startRunChild(t *testing.T, root, mode string) *runChild {
 func awaitLine(t *testing.T, child *runChild, want string) {
 	t.Helper()
 	select {
-	case line := <-child.lines:
+	case line, open := <-child.lines:
+		// Closed stdout means the child exited first; its stderr says why.
+		if !open {
+			err := child.command.Wait()
+			child.waited = true
+			t.Fatalf("child exited awaiting %q: %v (%s)", want, err, child.err.String())
+		}
 		if line != want {
 			t.Fatalf("line %q, want %q", line, want)
 		}
