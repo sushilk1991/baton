@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -228,6 +229,27 @@ func TestNotices(t *testing.T) {
 	}
 	if strings.Count(out.String(), "waiting") != 1 {
 		t.Fatalf("not rate limited: %q", out.String())
+	}
+}
+
+// --quiet hides ordinary notices, never the warning that memory was bypassed.
+func TestQuietKeepsMaxWaitWarning(t *testing.T) {
+	isolateHome(t)
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts := baseOptions([]string{executable, "-test.run=^TestNothing$"})
+	opts.quiet, opts.maxWait = true, 20*time.Millisecond
+	opts.gate.PollInterval = time.Millisecond
+	opts.provider = &nestedPressure{samples: []pressure.Snapshot{{Level: pressure.Warn, TotalBytes: 8 * gib, AvailableBytes: 6 * gib}}}
+	var stderr bytes.Buffer
+	code, err := runJob(context.Background(), opts, streams{nil, io.Discard, &stderr})
+	if err != nil || code != 0 {
+		t.Fatalf("code %d, error %v", code, err)
+	}
+	if !strings.Contains(stderr.String(), "WARNING: max_wait") || strings.Contains(stderr.String(), "waiting for") {
+		t.Fatalf("quiet stderr %q", stderr.String())
 	}
 }
 

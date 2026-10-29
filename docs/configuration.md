@@ -86,7 +86,9 @@ quantities are positive whole-byte values; K, M, G, KiB, MiB, GiB, KB, MB,
 and GB use powers of 1024. `1.5G` is valid. Durations use Go syntax such as
 `250ms`, `30m`, or `168h`; `7d` is not valid.
 
-Failed probes delay admission. At `max_wait`, a warning accompanies
+Failed probes delay admission. Only time blocked by memory counts toward
+`max_wait`; waiting for a busy slot does not, and memory is checked again
+when the slot frees. At `max_wait`, a warning accompanies
 admission once the job has its queue turn and enough slots. `--quiet` hides
 ordinary notices but never this warning. Disabling the memory gate retains
 queue, priority, weight, and slot controls. No policy enforces memory usage.

@@ -86,8 +86,10 @@ func TestRunWaitNotices(t *testing.T) {
 				t.Fatal(err)
 			}
 			waitCode(t, command, 0)
+			// A slot wait with healthy memory never spends max_wait, so it
+			// ends without the bypass warning even past --max-wait.
 			notice := strings.Contains(stderr.String(), "baton: waiting for x")
-			if notice == quiet || !strings.Contains(stderr.String(), "WARNING: max_wait") {
+			if notice == quiet || strings.Contains(stderr.String(), "WARNING: max_wait") {
 				t.Fatalf("quiet %t, stderr %q", quiet, stderr.String())
 			}
 		})

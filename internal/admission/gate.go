@@ -59,6 +59,17 @@ type waitState struct {
 	healthySince time.Time
 }
 
+// memoryBudget spends max_wait only while memory blocks admission. Time a
+// job waits for a busy slot with healthy memory is never counted:
+//
+//	probe: blocked -- pause -- blocked -- pause -- ready -- slot busy -- ...
+//	       |<---------- spent ---------->|          not spent
+type memoryBudget struct {
+	spent   time.Duration
+	last    time.Time
+	blocked bool
+}
+
 // New prepares a gate without reading or changing machine state.
 func New(provider pressure.Provider, options Options) (*Gate, error) {
 	if provider == nil || options.MaxWait < 0 || options.PollInterval < 0 || options.RecoveryWindow < 0 {
@@ -91,8 +102,8 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 	if warnings == nil {
 		warnings = os.Stderr
 	}
-	deadline := time.Now().Add(gate.options.MaxWait)
 	var state waitState
+	var budget memoryBudget
 	var sample pressure.Snapshot
 	var sampleErr error
 	for {
@@ -100,20 +111,24 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			return nil, err
 		}
 
-		// Never retain slots while probing. Expiry bypasses only memory policy.
-		// sample -> healthy/timeout -> ticket.TryAcquire -> lease -> child
+		// Never retain slots while probing. Every attempt probes, even after
+		// max_wait, so a slot freed after a long wait meets current pressure.
+		// sample -> healthy/budget spent -> ticket.TryAcquire -> lease -> child
 		gated := gate.options.MemoryGate == GateEnabled
-		expired := gated && !time.Now().Before(deadline)
-		if gated && !expired {
-			sample, sampleErr = gate.probe(ctx, deadline)
+		ready := true
+		if gated {
+			probed := time.Now()
+			sample, sampleErr = gate.probe(ctx, budget.remaining(gate.options.MaxWait))
+			now := time.Now()
+			ready = state.ready(sample, sampleErr, memory, gate.options.MarginBytes, gate.options.RecoveryWindow, now)
+			budget.observe(ready, probed, now)
 		}
-		ready := !gated || state.ready(sample, sampleErr, memory, gate.options.MarginBytes, gate.options.RecoveryWindow, time.Now())
-		expired = gated && !time.Now().Before(deadline)
+		expired := gated && budget.remaining(gate.options.MaxWait) <= 0
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if !ready && !expired {
-			if err := gate.wait(ctx, deadline, sample, sampleErr); err != nil {
+			if err := gate.wait(ctx, budget.remaining(gate.options.MaxWait), sample, sampleErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -124,7 +139,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 			lease, err = ticket.TryAcquire()
 		}
 		if errors.Is(err, queue.ErrBusy) {
-			if err := gate.wait(ctx, deadline, sample, sampleErr); err != nil {
+			if err := gate.wait(ctx, 0, sample, sampleErr); err != nil {
 				return nil, err
 			}
 			continue
@@ -132,7 +147,7 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 		if err != nil {
 			return nil, err
 		}
-		if !expired {
+		if ready {
 			return lease, nil
 		}
 		err = gate.warn(warnings, sample, sampleErr)
@@ -146,14 +161,36 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 	}
 }
 
-func (gate *Gate) probe(ctx context.Context, deadline time.Time) (pressure.Snapshot, error) {
-	probeCtx, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
+func (gate *Gate) probe(ctx context.Context, remaining time.Duration) (pressure.Snapshot, error) {
+	// A probe never outlasts the unspent budget; once it is spent, the
+	// provider's own timeout bounds the check made before admission.
+	probeCtx := ctx
+	if remaining > 0 {
+		var cancel context.CancelFunc
+		probeCtx, cancel = context.WithTimeout(ctx, remaining)
+		defer cancel()
+	}
 	sample, err := gate.provider.Sample(probeCtx)
 	if err != nil {
 		return sample, err
 	}
 	return sample, sample.Validate()
+}
+
+// observe spends the time since the last blocked probe, or the duration of
+// a probe that blocked on its own, such as one that failed slowly.
+func (budget *memoryBudget) observe(ready bool, probed, now time.Time) {
+	switch {
+	case budget.blocked:
+		budget.spent += now.Sub(budget.last)
+	case !ready:
+		budget.spent += now.Sub(probed)
+	}
+	budget.last, budget.blocked = now, !ready
+}
+
+func (budget *memoryBudget) remaining(maxWait time.Duration) time.Duration {
+	return maxWait - budget.spent
 }
 
 func (state *waitState) ready(snapshot pressure.Snapshot, err error, memory, margin uint64, recovery time.Duration, now time.Time) bool {
@@ -172,19 +209,21 @@ func (state *waitState) ready(snapshot pressure.Snapshot, err error, memory, mar
 	return now.Sub(state.healthySince) >= recovery
 }
 
-func (gate *Gate) wait(ctx context.Context, deadline time.Time, sample pressure.Snapshot, sampleErr error) error {
+// wait pauses one poll interval, or less when an unspent memory budget
+// ends sooner; a zero budget is a slot wait and always pauses a full poll.
+func (gate *Gate) wait(ctx context.Context, budget time.Duration, sample pressure.Snapshot, sampleErr error) error {
 	if gate.options.OnWait != nil {
 		if err := gate.options.OnWait(sample, sampleErr); err != nil {
 			return err
 		}
 	}
-	return gate.pause(ctx, deadline)
+	return gate.pause(ctx, budget)
 }
 
-func (gate *Gate) pause(ctx context.Context, deadline time.Time) error {
+func (gate *Gate) pause(ctx context.Context, budget time.Duration) error {
 	delay := gate.options.PollInterval
-	if remaining := time.Until(deadline); remaining > 0 && remaining < delay {
-		delay = remaining
+	if budget > 0 && budget < delay {
+		delay = budget
 	}
 	timer := time.NewTimer(delay)
 	defer timer.Stop()

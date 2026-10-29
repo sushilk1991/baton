@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"math"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -280,4 +283,141 @@ func TestWaitObserverFailure(t *testing.T) {
 	if _, err := ticket.TryAcquire(); !errors.Is(err, queue.ErrClosed) {
 		t.Fatalf("failed notice retained ticket: %v", err)
 	}
+}
+
+// max_wait bounds memory delay only. Waiting for an occupied slot while
+// memory is healthy must not spend it, so admission carries no warning.
+func TestSlotWaitKeepsMemoryBudget(t *testing.T) {
+	isolateHome(t)
+	q, held := heldLane(t)
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newGate(t, fakeProvider{level: pressure.Normal}, Options{MaxWait: 10 * time.Millisecond, PollInterval: time.Millisecond})
+	var warnings bytes.Buffer
+	results := acquireLater(gate, ticket, &warnings)
+	time.Sleep(50 * time.Millisecond)
+	if err := held.Release(); err != nil {
+		t.Fatal(err)
+	}
+	got := <-results
+	if got.err != nil || got.lease == nil {
+		t.Fatalf("released slot not admitted: %+v", got)
+	}
+	defer func() { _ = got.lease.Release() }()
+	if strings.Contains(warnings.String(), "WARNING") {
+		t.Fatalf("slot wait spent the memory budget: %q", warnings.String())
+	}
+}
+
+// Memory is checked again when a slot frees after a long slot wait: a job
+// that queued behind other work still waits out pressure, up to max_wait.
+//
+//	slot busy, memory healthy (> max_wait) -> slot frees, memory critical
+//	-> waits about max_wait -> admitted with the warning
+func TestMemoryCheckedAfterSlotWait(t *testing.T) {
+	isolateHome(t)
+	q, held := heldLane(t)
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider := &switchProvider{}
+	provider.set(pressure.Normal)
+	const maxWait = 300 * time.Millisecond
+	gate := newGate(t, provider, Options{MaxWait: maxWait, PollInterval: time.Millisecond})
+	var warnings lockedBuffer
+	results := acquireLater(gate, ticket, &warnings)
+	time.Sleep(2 * maxWait)
+	provider.set(pressure.Critical)
+	time.Sleep(10 * time.Millisecond)
+	released := time.Now()
+	if err := held.Release(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-results:
+		if got.lease != nil {
+			_ = got.lease.Release()
+		}
+		t.Fatalf("admitted under critical pressure after a slot wait: %+v %q", got, warnings.String())
+	case <-time.After(maxWait / 2):
+	}
+	got := <-results
+	if got.err != nil || got.lease == nil {
+		t.Fatalf("memory wait never ended: %+v", got)
+	}
+	defer func() { _ = got.lease.Release() }()
+	if waited := time.Since(released); waited < maxWait/2 {
+		t.Fatalf("memory wait %s, want about %s", waited, maxWait)
+	}
+	if !strings.Contains(warnings.String(), "WARNING") || !strings.Contains(warnings.String(), "critical") {
+		t.Fatalf("missing max_wait warning: %q", warnings.String())
+	}
+}
+
+type acquired struct {
+	lease *lane.Lease
+	err   error
+}
+
+func acquireLater(gate *Gate, ticket *queue.Ticket, warnings io.Writer) <-chan acquired {
+	results := make(chan acquired, 1)
+	go func() {
+		lease, err := gate.Acquire(context.Background(), ticket, 0, warnings)
+		results <- acquired{lease, err}
+	}()
+	return results
+}
+
+// heldLane returns a one-slot lane whose slot a first job already holds.
+func heldLane(t *testing.T) (*queue.Queue, *lane.Lease) {
+	t.Helper()
+	q, err := queue.New(t.TempDir(), "render", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := first.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Release() })
+	return q, held
+}
+
+// switchProvider reports a level the test changes while admission runs.
+type switchProvider struct {
+	level atomic.Value
+}
+
+func (provider *switchProvider) set(level pressure.Level) {
+	provider.level.Store(level)
+}
+
+func (provider *switchProvider) Sample(context.Context) (pressure.Snapshot, error) {
+	level, _ := provider.level.Load().(pressure.Level)
+	return pressure.Snapshot{Level: level, TotalBytes: 8 << 30, AvailableBytes: 6 << 30}, nil
+}
+
+// lockedBuffer collects warnings written by the admission goroutine.
+type lockedBuffer struct {
+	mu   sync.Mutex
+	data bytes.Buffer
+}
+
+func (buffer *lockedBuffer) Write(data []byte) (int, error) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.data.Write(data)
+}
+
+func (buffer *lockedBuffer) String() string {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.data.String()
 }
