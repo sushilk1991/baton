@@ -147,7 +147,7 @@ func (store *store) publish(job jobRecord) error {
 }
 
 func (store *store) remove(id string) {
-	_ = os.Remove(filepath.Join(store.root, "jobs", id+".json"))
+	_ = removeRecord(filepath.Join(store.root, "jobs", id+".json"))
 	_ = os.Remove(filepath.Join(store.root, "jobs", id+".lock"))
 }
 
@@ -182,7 +182,7 @@ func (store *store) predict(ctx context.Context, signature string) (uint64, erro
 
 func (store *store) readLearned() (map[string]uint64, error) {
 	values := make(map[string]uint64)
-	data, err := os.ReadFile(filepath.Join(store.root, "learned.json"))
+	data, err := readRecord(filepath.Join(store.root, "learned.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return values, nil
 	}
@@ -260,5 +260,5 @@ func writeJSON(path string, value any) error {
 	if err := errors.Join(json.NewEncoder(file).Encode(value), file.Close()); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	return os.Rename(file.Name(), path)
+	return replaceRecord(file.Name(), path)
 }

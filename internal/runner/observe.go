@@ -179,7 +179,7 @@ func activeJobs(ctx context.Context, root string) ([]jobRecord, error) {
 			return nil, err
 		}
 		path := filepath.Join(dir, file.Name())
-		data, err := os.ReadFile(path)
+		data, err := readRecord(path)
 		// Normal completion may remove the record after its owner probe.
 		if errors.Is(err, os.ErrNotExist) {
 			continue
