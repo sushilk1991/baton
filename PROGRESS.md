@@ -1,8 +1,29 @@
 # Progress
 
+## v0.1.1 released (2026-10-29)
+
+Shipped: main fast-forwarded to the ux-fixes work; tag v0.1.1 on 4627a56
+and the published GitHub release (five archives, checksums.txt,
+baton.rb); Formula/baton.rb 0.1.1 in sushilk1991/homebrew-tap (3bcdffe).
+
+Verified: CI run 40926515453 green apart from the retired macos-13;
+release assets matched checksums; install.sh, go install @v0.1.1, and
+brew audit, upgrade, and test on macOS arm64 report v0.1.1. See
+docs/verification.md.
+
+Next (v0.1.2):
+- `yarn run -h playwright` takes a lane; the docs promise -h is skipped
+  for yarn. Pass npmCommand to the yarn run branch.
+- `bunx --minimum-release-age 86400 playwright` loses its lane; add the
+  option to bunxOptions.
+- Yarn Boolean spellings 0, 1, FALSE, TRUE; npm long-option
+  abbreviations (--reg); short -h for dispatchers.
+- Runners that are not installed here and were left opaque: mise exec,
+  op run, pdm, hatch, rye, pixi, nix, taskset, chrt, flock.
+
 ## UX and review fixes, branch ux-fixes (2026-10-29)
 
-Shipped locally (branch ux-fixes, not pushed): fixes for the three bugs
+Shipped in v0.1.1: fixes for the three bugs
 and every UX issue from hands-on testing of v0.1.0: max_wait spends only
 memory-blocked time; built-in matchers see executables, user matchers
 full argv; shims and holds run unqueued on a broken config; baton

@@ -1,11 +1,41 @@
 Not verified: the retired macos-13 runner, Windows beyond its core test
 suite, live agent loading, and the Linux and Intel macOS Homebrew
-installs. Branch ux-fixes has no hosted CI run yet.
+installs.
+
+## v0.1.1 release (2026-10-29)
+
+Tag v0.1.1 on 4627a56 was gated by CI run 40926515453: every runnable
+job passed (Linux amd64/arm64 and Windows on Go 1.22 and 1.27, macOS on
+Go 1.27, lint); macos-13 was cancelled. Before it, run 40925189670 on
+9ea8a38 went red on windows-latest Go 1.27 in
+TestMemoryCheckedAfterSlotWait: a slow runner released the slot after
+max_wait had been spent, and the test timed from the release. It now
+times from critical pressure; a mutation that lets slot waits spend
+max_wait still fails it. Release workflow 40927462589 built the draft;
+all five archives matched checksums.txt and the darwin/arm64 binary
+reported v0.1.1 before publication.
+
+Install checks on macOS arm64, each in private HOME/GOPATH paths:
+install.sh (latest) and `go install ...@v0.1.1` both report
+`baton v0.1.1`. Tap 3bcdffe: `brew audit --formula --strict --online`,
+fetch, upgrade, and `brew test` pass; /opt/homebrew/bin/baton reports
+v0.1.1.
+
+Gates before the merge: Linux instabox `make check` with golangci-lint
+v2.15.0 on eb2b6ac (exit 0, 18 packages, 0 issues), and native macOS
+`go test -race ./...` on 9ea8a38 with `-p 1` at load average ~400 (17
+packages ok; internal/process, whose 5 s ps deadline expired under that
+load, passed three runs on its own).
+
+Nine Codex reviews of a8a9c82..HEAD drove the classifier from exact
+executable heads to per-tool option parsing. The ninth found no P1; its
+P2 (yarn run -h) and P3 (bunx --minimum-release-age) are left for
+v0.1.2, as the owner decided.
 
 ## UX and review fixes, branch ux-fixes (2026-10-29)
 
 Hands-on testing of the v0.1.0 Homebrew build, with a private HOME, found
-three bugs and the UX issues listed in CHANGELOG Unreleased. Each bug fix
+three bugs and the UX issues listed in the v0.1.1 CHANGELOG. Each bug fix
 started with a failing test. Gates on 4fbef43:
 
 - Linux (instabox, Go 1.27.1, amd64): `make check` exit 0 with
