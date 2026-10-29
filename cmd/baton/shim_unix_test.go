@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -203,14 +205,37 @@ func TestShimRecursion(t *testing.T) {
 	}
 }
 
+// cliBuild compiles baton once per test binary. Each test isolates HOME, so
+// each build would otherwise start from a cold Go cache: about 15 s apiece
+// on a CI runner, which pushed this package past go test's 10m default.
+var cliBuild struct {
+	dir    string // created by TestMain, outlives every test's TMPDIR
+	once   sync.Once
+	binary string
+	err    error
+}
+
 func buildShimCLI(t *testing.T) string {
 	t.Helper()
 	// Build before replacing PATH; all subprocess home/XDG values are isolated.
-	binary := filepath.Join(t.TempDir(), "baton's binary")
-	command := exec.Command("go", "build", "-modcacherw", "-o", binary, ".")
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("build CLI: %v\n%s", err, output)
+	cliBuild.once.Do(func() {
+		cliBuild.binary = filepath.Join(cliBuild.dir, "baton")
+		output, err := exec.Command("go", "build", "-modcacherw", "-o", cliBuild.binary, ".").CombinedOutput()
+		if err != nil {
+			cliBuild.err = fmt.Errorf("%w\n%s", err, output)
+		}
+	})
+	if cliBuild.err != nil {
+		t.Fatalf("build CLI: %v", cliBuild.err)
 	}
+
+	// Each test gets its own copy, which it may move, replace, or remove.
+	data, err := os.ReadFile(cliBuild.binary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(t.TempDir(), "baton's binary")
+	writeShimFile(t, binary, string(data), 0700)
 	return binary
 }
 

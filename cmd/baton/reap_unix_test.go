@@ -41,7 +41,17 @@ func TestMain(m *testing.M) {
 	if os.Getenv("BATON_REAP_HELPER") != "" {
 		reapHelper()
 	}
-	os.Exit(m.Run())
+
+	// One shared CLI build for buildShimCLI, removed after every test ran.
+	dir, err := os.MkdirTemp("", "baton-cli-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	cliBuild.dir = dir
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
 }
 
 func reapHelper() {
