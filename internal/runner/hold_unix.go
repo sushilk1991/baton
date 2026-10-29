@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sushilk1991/baton/internal/config"
 	"github.com/sushilk1991/baton/internal/lockfile"
 	"github.com/sushilk1991/baton/internal/process"
 )
@@ -58,6 +59,12 @@ func Hold(args []string, out, diagnostics io.Writer) int {
 		if !shellAncestor(ctx, shell) {
 			fmt.Fprintln(diagnostics, "baton hold: pid is not a calling ancestor")
 			return exitUsage
+		}
+		// A config typo must not block the command after hold &&; it runs
+		// unqueued, as with BATON=off, until the config is fixed.
+		if _, err := config.Load(); err != nil {
+			fmt.Fprintf(diagnostics, "baton hold: %v\nbaton hold: running unqueued; fix the config or set BATON=off\n", err)
+			return 0
 		}
 		err = startHold(ctx, *name, shell, diagnostics)
 	}

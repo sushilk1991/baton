@@ -11,6 +11,10 @@ No file is required. `show` prints effective defaults plus overrides;
 your current machine defaults, run `baton config init` once. It refuses to
 replace any existing file or symlink.
 
+A configuration that fails to load never blocks other work: shims and the
+Claude hook's `baton hold` print the error and run their command unqueued.
+`baton run` and the other commands report it and exit nonzero.
+
 The [generated defaults reference](defaults.toml) comes from the binary's
 `config show`, not a second hand-maintained schema. Its slot counts reflect
 the generation host; its cache-directory assignment is replaced by a

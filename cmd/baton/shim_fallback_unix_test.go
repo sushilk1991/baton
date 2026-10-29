@@ -129,3 +129,28 @@ func TestShimUpgradePath(t *testing.T) {
 		t.Fatalf("upgrade bypassed scheduling: %s", history)
 	}
 }
+
+// A damaged config.toml must not break every shimmed tool or held shell
+// command machine-wide. Both warn and run the real command unqueued, as
+// BATON=off would, keeping its exit status.
+func TestBrokenConfigRunsUnqueued(t *testing.T) {
+	isolateShim(t)
+	baton := buildShimCLI(t)
+	realDir := t.TempDir()
+	writeShimFile(t, filepath.Join(realDir, "ffmpeg"), "#!/bin/sh\nprintf ran\nexit 3\n", 0700)
+	t.Setenv("PATH", realDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	shimCLI(t, baton, 0, "shim", "install", "ffmpeg")
+	writeShimFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "baton", "config.toml"), "[lanes.render]\nslots = \"two\"\n", 0600)
+
+	shim := filepath.Join(os.Getenv("XDG_DATA_HOME"), "baton", "shims", "ffmpeg")
+	out := shimCLI(t, shim, 3, "-i", "in")
+	if !strings.HasSuffix(out, "ran") || !strings.Contains(out, "config.toml") || !strings.Contains(out, "unqueued") {
+		t.Fatalf("shim output: %q", out)
+	}
+
+	// The Claude hook's prefix: hold && command, in the calling shell.
+	held := shimCLI(t, "/bin/sh", 0, "-c", `"$1" hold --lane encode --pid $$ && printf held`, "sh", baton)
+	if !strings.HasSuffix(held, "held") || !strings.Contains(held, "unqueued") {
+		t.Fatalf("hold output: %q", held)
+	}
+}

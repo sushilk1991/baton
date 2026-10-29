@@ -49,7 +49,10 @@ func invoke(name string, args []string) (int, error) {
 	}
 	settings, err := config.Load()
 	if err != nil {
-		return exitFailure, err
+		// A config typo must not stop every shimmed tool on the machine.
+		// Run it as BATON=off would, and say why it was not queued.
+		fmt.Fprintf(os.Stderr, "baton: %v\nbaton: running %s unqueued; fix the config or set BATON=off\n", err, name)
+		return direct(real, args)
 	}
 	if settings.ShimBypass(name, args) {
 		return direct(real, args)
