@@ -41,7 +41,9 @@ func validateExtras(doc document) error {
 		}
 	}
 	for _, pattern := range doc.GC.Patterns {
-		if pattern == "" || filepath.IsAbs(pattern) || strings.Contains(pattern, `\`) {
+		// A leading slash roots the pattern on every OS; Windows IsAbs also
+		// needs a volume, so "/absolute" and "C:x" are checked directly.
+		if pattern == "" || filepath.IsAbs(pattern) || strings.HasPrefix(pattern, "/") || filepath.VolumeName(pattern) != "" || strings.Contains(pattern, `\`) {
 			return fmt.Errorf("gc.patterns must be nonempty relative slash patterns, got %q", pattern)
 		}
 		for _, part := range strings.Split(pattern, "/") {
