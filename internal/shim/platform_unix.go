@@ -3,6 +3,7 @@
 package shim
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -62,7 +63,12 @@ func isExecutable(info os.FileInfo) bool {
 
 func direct(real string, args []string) (int, error) {
 	// Replace the wrapper, preserving descriptors, signals, PID, and status.
+	// A missing file, such as a removed #! interpreter, exits 127 as a
+	// queued run does; other exec failures exit 126.
 	err := syscall.Exec(real, append([]string{real}, args...), os.Environ())
+	if errors.Is(err, os.ErrNotExist) {
+		return exitNotFound, err
+	}
 	return exitNotExecutable, err
 }
 

@@ -1,6 +1,7 @@
 package shim
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -50,6 +51,9 @@ func direct(real string, args []string) (int, error) {
 	err := command.Run()
 	if exit, ok := err.(*exec.ExitError); ok {
 		return exit.ExitCode(), nil
+	}
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		return exitNotFound, err
 	}
 	if err != nil {
 		return exitNotExecutable, err

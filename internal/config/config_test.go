@@ -212,6 +212,12 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"uv", "run", "-h", "whisper"}, ""},
 		{[]string{"pnpm", "-v", "exec", "playwright"}, ""},
 		{[]string{"npx", "-v", "playwright"}, ""},
+		// Yarn Classic reads global options after exec; bunx takes --cwd.
+		{[]string{"yarn", "exec", "--cwd", "web", "playwright", "test"}, "render"},
+		{[]string{"yarn", "exec", "--silent", "playwright", "test"}, "render"},
+		{[]string{"bunx", "--cwd", "web", "playwright", "test"}, "render"},
+		{[]string{"bun", "x", "--env-file", ".env", "playwright", "test"}, "render"},
+		{[]string{"pnpm", "run", "--use-node-version", "22.0.0", "playwright", "test"}, "render"},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)

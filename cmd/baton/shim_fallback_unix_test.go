@@ -183,3 +183,16 @@ func TestShimUnmatchedDirect(t *testing.T) {
 		t.Fatalf("matched call history %s (%v)", data, err)
 	}
 }
+
+// An unmatched shimmed tool that cannot start for a missing file exits 127,
+// as a queued one does: pip whose interpreter was removed.
+func TestShimUnmatchedNotFound(t *testing.T) {
+	isolateShim(t)
+	baton := buildShimCLI(t)
+	realDir := t.TempDir()
+	writeShimFile(t, filepath.Join(realDir, "pip"), "#!/removed/python\n", 0700)
+	t.Setenv("PATH", realDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	shimCLI(t, baton, 0, "shim", "install", "pip")
+	shim := filepath.Join(os.Getenv("XDG_DATA_HOME"), "baton", "shims", "pip")
+	shimCLI(t, shim, 127, "list")
+}

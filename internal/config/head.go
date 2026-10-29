@@ -11,13 +11,15 @@ import (
 const (
 	launcherOptions = "-p --package"
 	launcherShell   = "-c --call"
+	// bunx and bun x options that take a value (bun.com/docs/pm/bunx).
+	bunxOptions = launcherOptions + " --cwd --env-file --config"
 	// npx's -p is --package; npm exec's -p is the --parseable flag.
 	npxOptions = launcherOptions + " " + npmConfigValues
 	npmOptions = "--package " + npmConfigValues
 	// pnpm options that take a value, before or after exec, dlx, and run,
 	// including npm's long config options (--prefix) and pnpm's directory
 	// settings; -w is pnpm's --workspace-root flag, not npm's --workspace.
-	pnpmOptions = "-C --dir -F --filter --filter-prod --loglevel --reporter --resume-from --workspace-concurrency --test-pattern --changed-files-ignore-pattern --allow-build --package --store-dir --virtual-store-dir --modules-dir --lockfile-dir --global-dir --global-bin-dir --cache-dir --state-dir --node-linker --package-import-method --child-concurrency --network-concurrency --resolution-mode " + npmLongValues
+	pnpmOptions = "-C --dir -F --filter --filter-prod --loglevel --reporter --resume-from --workspace-concurrency --test-pattern --changed-files-ignore-pattern --allow-build --package --store-dir --virtual-store-dir --modules-dir --lockfile-dir --global-dir --global-bin-dir --cache-dir --state-dir --node-linker --package-import-method --child-concurrency --network-concurrency --resolution-mode --use-node-version " + npmLongValues
 	pnpmShell   = "-c --shell-mode"
 	// npm, pnpm, and yarn print their version or help for these shorthands.
 	npmQueries = "-v -h -?"
@@ -311,7 +313,7 @@ func nestedHead(words []string, depth int) []string {
 	case "npx":
 		return launched(head, npmCommand(words[1:], npxOptions, launcherShell), depth)
 	case "bunx":
-		return launched(head, commandOptions(words[1:], launcherOptions, ""), depth)
+		return launched(head, commandOptions(words[1:], bunxOptions, ""), depth)
 	case "uvx":
 		return launched(head, commandOptions(words[1:], uvOptions, uvQueries), depth)
 	}
@@ -361,9 +363,9 @@ func nestedHead(words []string, depth int) []string {
 	case base == "pnpm" && run:
 		return launched(launch, npmCommand(rest, pnpmOptions, ""), depth)
 	case base == "yarn" && verb == "exec":
-		if len(rest) > 0 && rest[0] == "--" {
-			rest = rest[1:]
-		}
+		// Yarn Classic reads its global options after exec too:
+		// yarn exec --cwd web playwright test.
+		rest = npmCommand(rest, yarnGlobals, "")
 		if len(rest) > 0 && strings.ContainsAny(rest[0], shellSyntax) {
 			return launch
 		}
@@ -373,7 +375,7 @@ func nestedHead(words []string, depth int) []string {
 	case base == "yarn" && run:
 		return launched(launch, commandOptions(rest, "--require", ""), depth)
 	case base == "bun" && verb == "x":
-		return launched(launch, commandOptions(rest, launcherOptions, ""), depth)
+		return launched(launch, commandOptions(rest, bunxOptions, ""), depth)
 	case base == "bun" && run:
 		return launched(launch, commandOptions(rest, bunOptions, bunInline), depth)
 	case base == "uv" && verb == "run":
