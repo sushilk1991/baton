@@ -8,9 +8,13 @@ import (
 const (
 	launcherOptions = "-p --package"
 	launcherShell   = "-c --call"
-	helpFlag        = "--help"
-	versionFlag     = "--version"
-	batonDisabled   = "off"
+	// uv run and uvx options that take a value before the launched tool.
+	uvOptions = "--with --with-editable --with-requirements --from --python -p --project --directory --env-file --extra --group --package --index -C --config-setting"
+	// Python interpreter options that take a value, e.g. -W ignore.
+	pythonValues  = "-W -X --check-hash-based-pycs"
+	helpFlag      = "--help"
+	versionFlag   = "--version"
+	batonDisabled = "off"
 )
 
 func commandBase(word string) string {
@@ -98,7 +102,7 @@ func commandHead(words []string) []string {
 	}
 
 	// Known dispatchers expose only their executable/module or operation.
-	// Payload arguments never enter config regexes, e.g. npm info ffmpeg.
+	// Payload arguments never reach built-in regexes, e.g. npm info ffmpeg.
 	base, verb := commandBase(words[0]), words[1]
 	if base == "npx" {
 		target := commandOptions(words[1:], launcherOptions, launcherShell)
@@ -115,9 +119,21 @@ func commandHead(words []string) []string {
 		}
 		return append(append(head, verb), commandHead(target)...)
 	}
+	// uv run and uvx launch a tool as npx does: uv run whisper audio.wav.
+	if base == "uvx" || (base == "uv" && verb == "run") {
+		rest := words[1:]
+		if base == "uv" {
+			head, rest = append(head, verb), words[2:]
+		}
+		target := commandOptions(rest, uvOptions, "")
+		if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
+			return head
+		}
+		return append(head, commandHead(target)...)
+	}
 	// A module keeps its operation too: python -m pip install numpy.
-	if (base == "python" || strings.HasPrefix(base, "python3")) && verb == "-m" && len(words) > 2 {
-		return append(append(head, verb), commandHead(words[2:])...)
+	if base == "python" || strings.HasPrefix(base, "python3") {
+		return append(head, pythonModule(words[1:])...)
 	}
 	switch base {
 	case "npm", "pnpm", "yarn", "bun", "pip", "pip3", "uv", "brew", "cargo", "go":
@@ -126,6 +142,29 @@ func commandHead(words []string) []string {
 		}
 	}
 	return head
+}
+
+// pythonModule finds -m after interpreter options and returns -m plus the
+// module's own head: python3 -u -m mlx_whisper a.wav -> -m mlx_whisper.
+// A -c command, a script, or no -m yields nothing.
+func pythonModule(args []string) []string {
+	for index := 0; index < len(args); index++ {
+		option := args[index]
+		// -m may close a flag cluster: python3 -um mlx_whisper.
+		cluster := len(option) > 2 && option[0] == '-' && option[1] != '-' && strings.HasSuffix(option, "m")
+		switch {
+		case option == "-m" || cluster:
+			if index+1 == len(args) {
+				return nil
+			}
+			return append([]string{"-m"}, commandHead(args[index+1:])...)
+		case strings.Contains(" "+pythonValues+" ", " "+option+" "):
+			index++
+		case option == "-c" || option == "-" || !strings.HasPrefix(option, "-"):
+			return nil
+		}
+	}
+	return nil
 }
 
 func readOnlyCommand(words []string) bool {

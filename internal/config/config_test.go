@@ -48,6 +48,15 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"python", "-m", "pip", "install", "numpy"}, "install"},
 		{[]string{"python3", "-m", "pip", "list"}, ""},
 		{[]string{"pnpm", "exec", "cargo", "build"}, "build"},
+		// uv run and uvx launch tools like npx; Python options precede -m.
+		{[]string{"uv", "run", "whisper", "audio.wav"}, "ml"},
+		{[]string{"uv", "run", "--with", "mlx", "python", "-m", "mlx_whisper", "a.wav"}, "ml"},
+		{[]string{"uvx", "--from", "openai-whisper", "whisper", "a.wav"}, "ml"},
+		{[]string{"uv", "run", "pytest"}, ""},
+		{[]string{"python3", "-u", "-m", "mlx_whisper", "audio.wav"}, "ml"},
+		{[]string{"python", "-W", "ignore", "-m", "pip", "install", "x"}, "install"},
+		{[]string{"python3", "-um", "mlx_whisper"}, "ml"},
+		{[]string{"python", "-c", "import whisper"}, ""},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)

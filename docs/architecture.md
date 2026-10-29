@@ -1153,10 +1153,13 @@ so an early continuation cannot arrive before the fixture's self-stop.
 Hook classification reads literal command segments separated by unquoted
 shell operators. It skips assignments, `sudo`, `time`, `nice`, and `env`,
 including their recognized option values. Only executable basenames and
-known dispatch operations reach config matchers: install/build verbs,
-npm-style executable launchers, and Python `-m` module names. Payload
-arguments and executable directory names never select a lane. For example,
-`grep ffmpeg` stays unqueued; `npx remotion render` selects render. Each
+known dispatch operations reach built-in matchers: install/build verbs,
+npm-style, `uv run`, and `uvx` launchers, and Python `-m` modules after
+interpreter options. Payload arguments and executable directory names
+never select a built-in lane. For example, `grep ffmpeg` stays unqueued;
+`npx remotion render` selects render. Matchers the user configures see
+the segment's full unwrapped words, and segments running baton itself
+never take a lane (`baton run` and the hook's own binary). Each
 segment uses configured matcher order; the first matching segment selects
 the whole command's lane. This keeps compound commands intact without
 reserving several lanes. A segment already executing `baton run` is skipped
