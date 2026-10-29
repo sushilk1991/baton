@@ -143,6 +143,10 @@ func runJob(parent context.Context, opts options, ioSet streams) (int, error) {
 		defer cached.Close()
 	}
 	if hit {
+		// The command never runs, so say why its output appeared instantly.
+		if !opts.quiet {
+			fmt.Fprintf(ioSet.err, "baton: cache hit; restored %s without running the command\n", opts.output)
+		}
 		job.Start = time.Now().UTC()
 		job.WaitNanos = job.Start.Sub(job.Queued).Nanoseconds()
 		job.End, job.Phase, job.CacheHit = job.Start, "finished", true

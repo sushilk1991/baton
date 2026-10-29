@@ -41,12 +41,17 @@ func TestCacheCLI(t *testing.T) {
 			}
 		}
 	}
-	invoke()
+	if out := invoke(); strings.Contains(out, "cache hit") {
+		t.Fatalf("miss reported a hit: %q", out)
+	}
 	check("first", "x")
 	if err := os.Remove(filepath.Join(root, "result")); err != nil {
 		t.Fatal(err)
 	}
-	invoke()
+	// A hit skips the command, so it says so instead of finishing silently.
+	if out := invoke(); out != "baton: cache hit; restored result without running the command\n" {
+		t.Fatalf("hit output %q", out)
+	}
 	check("first", "x")
 	// A consumer may truncate a hardlinked output. Detect that corruption
 	// before reusing it, and execute the command to regenerate correct bytes.

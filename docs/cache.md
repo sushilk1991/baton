@@ -9,8 +9,9 @@ baton history --json --since 1h
 baton cache ls
 ```
 
-The second run restores `result.txt` and skips `cp`. Its history record has
-`cache_hit: true`. Delete the output and repeat to exercise restoration.
+The second run restores `result.txt` and skips `cp`, printing
+`baton: cache hit; restored result.txt without running the command` unless
+`--quiet` is set. Its history record has `cache_hit: true`. Delete the output and repeat to exercise restoration.
 The cache accepts one regular output file, not directories or symlinks.
 
 ## Keys and dependencies
