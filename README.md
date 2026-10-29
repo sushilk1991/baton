@@ -17,7 +17,19 @@ best-effort process control. Memory admission is advisory, not a RAM limit.
 
 ## Install
 
-This checkout is unreleased. Build from source with Go 1.22+ and Make:
+Install the latest release with one of:
+
+```sh
+brew install sushilk1991/tap/baton
+curl -fsSL https://raw.githubusercontent.com/sushilk1991/baton/main/install.sh | sh
+go install github.com/sushilk1991/baton/cmd/baton@latest
+```
+
+Homebrew covers macOS and Linux (arm64, amd64); the full `sushilk1991/tap/baton`
+name also records Homebrew's tap trust for later upgrades. Windows archives
+are on the [releases page](https://github.com/sushilk1991/baton/releases).
+
+To build from a checkout instead, use Go 1.22+ and Make:
 
 ```sh
 make build
@@ -26,21 +38,7 @@ baton --help
 ```
 
 The binary is `bin/baton`; put it at a stable location before installing
-shims or agent hooks. Go can also install from the checkout:
-
-```sh
-go install ./cmd/baton
-```
-
-Release packaging includes a Homebrew formula and a checksum-verifying
-installer. These commands require a published release and are
-unverified; they are not the current installation path:
-
-```sh
-brew install sushilk1991/tap/baton
-curl -fsSL https://raw.githubusercontent.com/sushilk1991/baton/main/install.sh | sh
-go install github.com/sushilk1991/baton/cmd/baton@latest
-```
+shims or agent hooks.
 
 The installer defaults to `~/.local/bin`, verifies SHA-256, and leaves shell
 configuration alone. Set `BATON_VERSION=v1.2.3` to choose a tag or
@@ -49,7 +47,7 @@ configuration alone. Set `BATON_VERSION=v1.2.3` to choose a tag or
 
 ## Try it in 60 seconds
 
-After building, run these from a POSIX shell:
+After installing, run these from a POSIX shell:
 
 1. Start two jobs in a new, single-slot lane:
 

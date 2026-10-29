@@ -1,5 +1,19 @@
 # Progress
 
+## v0.1.0 released (2026-10-29)
+
+Shipped: tag v0.1.0 on 4aa9396 and the published GitHub release (five
+archives, checksums.txt, baton.rb); Formula/baton.rb in
+sushilk1991/homebrew-tap. The formula template no longer emits a
+redundant `version` line, which failed `brew audit --strict`.
+
+Verified: CI run 40823379895 and release workflow 40823955753 green;
+checksums, install.sh, go install @v0.1.0, and brew audit, install, and
+test on macOS arm64. See docs/verification.md.
+
+Next: a `baton version` command; a verbose hosted run to confirm whether
+the Windows delete-pending subtest runs or skips; brew install on Linux.
+
 ## Hosted CI fixes (2026-10-29)
 
 Shipped: main pushed; the first hosted CI run exposed three Windows bugs

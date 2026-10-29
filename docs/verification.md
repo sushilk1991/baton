@@ -1,5 +1,29 @@
 Not verified: the retired macos-13 runner, Windows beyond its core test
-suite, and live agent loading. Public installs await owner publication.
+suite, live agent loading, and the Linux and Intel macOS Homebrew
+installs.
+
+## v0.1.0 release (2026-10-29)
+
+Tag v0.1.0 on 4aa9396 was gated by CI run 40823379895: every runnable
+job passed (Linux amd64/arm64 and Windows on Go 1.22 and 1.27, macOS 26
+on Go 1.27, lint); macos-13 was cancelled. Before it, run 40823186048
+went red on Windows in TestObserveBusySession: browser observation
+treated a busy session.json as fatal. Release workflow 40823955753
+passed its four checks and built the draft, which was then published.
+
+Install checks on macOS arm64, each in private HOME/GOPATH paths:
+
+- `shasum -a 256 -c checksums.txt` passed for all five archives; the
+  darwin_arm64 binary carries LC_UUID and runs help, run, and status.
+- `install.sh` from raw.githubusercontent.com installed `latest` with
+  "SHA-256 verified", and the binary ran.
+- `go install github.com/sushilk1991/baton/cmd/baton@v0.1.0` built
+  module v0.1.0, which ran.
+- Homebrew 7: `brew audit --formula --strict --online` first failed on a
+  redundant `version` line, fixed in the template and the tap. Then
+  style, audit, fetch, `brew install`, and `brew test` passed. With an
+  empty trust store, the full-name reinstall succeeded and recorded its
+  own trust entry.
 
 ## Hosted CI (2026-10-29)
 
@@ -273,8 +297,9 @@ binary's `vcs.revision`, `vcs.modified=false`, and `CGO_ENABLED=0`.
 
 ## Pending owner publication
 
-These are actual failures, excluded from the Final gate only by its explicit
-TASKS.md exception. Public installation remains unverified.
+Superseded by the v0.1.0 release above. Before publication these were
+actual failures, excluded from the Final gate only by its explicit
+TASKS.md exception.
 
 | Command | Exit | Captured output excerpt |
 | --- | --- | --- |

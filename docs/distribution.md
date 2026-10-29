@@ -67,8 +67,9 @@ it or push to a tap.
 
 For a future approved release, review the draft assets, publish the release,
 then copy the rendered formula to `Formula/baton.rb` in
-`sushilk1991/homebrew-tap`. Verify `brew install sushilk1991/tap/baton` and
-`brew test sushilk1991/tap/baton` against those published assets. No
+`sushilk1991/homebrew-tap`. Verify `brew audit --formula --strict --online`,
+`brew install`, and `brew test` for `sushilk1991/tap/baton` against those
+published assets. No
 cross-repository token is configured. The existing CI matrix still includes
 the retired macos-13 runner required by SPEC; this draft workflow uses
 available runners.
