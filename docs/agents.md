@@ -62,8 +62,8 @@ remain. The management lock inode remains under baton data.
 ## Claude Code hook
 
 The opt-in Bash `PreToolUse` hook invokes the same absolute baton executable
-as `baton init _hook`. It merges into `settings.json`, preserves other hook
-entries. Uninstall restores original bytes when settings are unchanged, or
+as `baton init _hook`. It merges into `settings.json` in the file's own
+indentation and preserves other hook entries. Uninstall restores original bytes when settings are unchanged, or
 removes only baton's entry when unrelated settings have changed.
 
 For a matching heavy command it returns `updatedInput.command` containing

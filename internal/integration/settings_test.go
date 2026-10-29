@@ -78,3 +78,48 @@ func TestSettingsBytes(t *testing.T) {
 		})
 	}
 }
+
+// A pretty-printed settings.json gets the hook on its own lines in the
+// file's indentation and line endings, not one minified line spliced
+// after the last member. Uninstall still restores the exact bytes.
+func TestSettingsKeepsIndentation(t *testing.T) {
+	for _, test := range []struct {
+		name, original, member, nested string
+	}{
+		{"spaces", "{\n  \"theme\": \"dark\",\n  \"permissions\": {\n    \"allow\": [\"Bash(ls:*)\"]\n  }\n}\n", "\n  \"hooks\": {\n", "\n    \"PreToolUse\": [\n"},
+		{"tabs", "{\n\t\"theme\": \"dark\"\n}\n", "\n\t\"hooks\": {\n", "\n\t\t\"PreToolUse\": [\n"},
+		{"crlf", "{\r\n  \"theme\": \"dark\"\r\n}\r\n", "\r\n  \"hooks\": {\r\n", "\r\n    \"PreToolUse\": [\r\n"},
+		{"existing hooks", "{\n  \"hooks\": {\n    \"Stop\": []\n  }\n}\n", "\n    \"PreToolUse\": [\n", "\n      {\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			isolate(t)
+			t.Setenv("TMPDIR", t.TempDir())
+			requireLinks(t)
+			i, err := newInstaller()
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := filepath.Join(i.home, ".claude", "settings.json")
+			if err := os.MkdirAll(filepath.Dir(name), 0700); err != nil {
+				t.Fatal(err)
+			}
+			mustWrite(t, name, []byte(test.original))
+			if err := i.manage(installAgents, applyChanges, withClaudeHook, &bytes.Buffer{}); err != nil {
+				t.Fatal(err)
+			}
+			installed, err := os.ReadFile(name)
+			if err != nil || !json.Valid(installed) {
+				t.Fatalf("installed JSON: %q (%v)", installed, err)
+			}
+			if !bytes.Contains(installed, []byte(test.member)) || !bytes.Contains(installed, []byte(test.nested)) || bytes.Contains(installed, []byte(`},"`)) {
+				t.Fatalf("hook not indented like the file:\n%s", installed)
+			}
+			if err := i.manage(removeAgents, applyChanges, withoutHook, &bytes.Buffer{}); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := os.ReadFile(name); err != nil || string(got) != test.original {
+				t.Fatalf("uninstall: %q (%v)", got, err)
+			}
+		})
+	}
+}

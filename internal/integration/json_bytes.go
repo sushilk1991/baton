@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 )
 
 // jsonPart locates a member and its value without decoding its spelling.
@@ -85,15 +86,63 @@ func appendJSON(data []byte, path []string, entry []byte) ([]byte, error) {
 			entry = append(append(append([]byte{'{'}, key...), ':'), append(entry, '}')...)
 		}
 		key, _ := json.Marshal(path[0])
-		entry = append(append(key, ':'), entry...)
+		return appendMember(data, parts, key, entry), nil
 	}
-	// Append beside the last value, leaving every existing byte in place.
-	at := bytes.IndexAny(data, "{[") + 1
-	if len(parts) > 0 {
-		at = parts[len(parts)-1].end
-		entry = append([]byte{','}, entry...)
+	return appendMember(data, parts, nil, entry), nil
+}
+
+// appendMember inserts key:value (or a bare array value) beside the last
+// member, leaving every existing byte in place. A one-line or empty
+// container gets the compact form; a multi-line one gets the new member
+// on its own lines in the file's indentation and line endings:
+//
+//	  "permissions": {...}    <- last member: indent "  "
+//	},                        <- container closes at indent ""
+//	inserted after "...}":    ,\n  "hooks": {\n    "PreToolUse": [...
+func appendMember(data []byte, parts []jsonPart, key, value []byte) []byte {
+	compact := value
+	if key != nil {
+		compact = append(append(append([]byte{}, key...), ':'), value...)
 	}
-	return spliceJSON(data, at, at, entry), nil
+	if len(parts) == 0 {
+		at := bytes.IndexAny(data, "{[") + 1
+		return spliceJSON(data, at, at, compact)
+	}
+	at := parts[len(parts)-1].end
+	indent, unit, newline, ok := memberLayout(data, parts)
+	var pretty bytes.Buffer
+	if !ok || json.Indent(&pretty, value, indent, unit) != nil {
+		return spliceJSON(data, at, at, append([]byte{','}, compact...))
+	}
+	member := "," + newline + indent
+	if key != nil {
+		member += string(key) + ": "
+	}
+	member += strings.ReplaceAll(pretty.String(), "\n", newline)
+	return spliceJSON(data, at, at, []byte(member))
+}
+
+// memberLayout reads how a multi-line container indents its members:
+// the last member's indent, the step from the closing delimiter's indent,
+// and the newline style. ok is false when members share a line.
+func memberLayout(data []byte, parts []jsonPart) (indent, unit, newline string, ok bool) {
+	last := parts[len(parts)-1]
+	lineStart := bytes.LastIndexByte(data[:last.start], '\n') + 1
+	indent = string(data[lineStart:last.start])
+	if lineStart == 0 || strings.Trim(indent, " \t") != "" {
+		return "", "", "", false
+	}
+	closing := bytes.LastIndexAny(data, "}]")
+	closeLine := bytes.LastIndexByte(data[:closing], '\n') + 1
+	outer := string(data[closeLine:closing])
+	if closeLine <= last.end || strings.Trim(outer, " \t") != "" || !strings.HasPrefix(indent, outer) || len(indent) == len(outer) {
+		return "", "", "", false
+	}
+	newline = "\n"
+	if lineStart >= 2 && data[lineStart-2] == '\r' {
+		newline = "\r\n"
+	}
+	return indent, indent[len(outer):], newline, true
 }
 
 func removeJSON(data []byte, parts []jsonPart, index int) []byte {
