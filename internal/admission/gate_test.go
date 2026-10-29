@@ -450,3 +450,41 @@ func TestWarningNamesRecovery(t *testing.T) {
 		t.Fatalf("warning %q", warnings.String())
 	}
 }
+
+// Probes after max_wait stay bounded even when a provider only stops on
+// cancellation; otherwise a freed slot could never admit the job.
+func TestLateProbeIsBounded(t *testing.T) {
+	isolateHome(t)
+	q, held := heldLane(t)
+	ticket, err := q.Enqueue(context.Background(), 1, queue.Normal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := newGate(t, blockingProvider{}, Options{MaxWait: 10 * time.Millisecond, PollInterval: time.Millisecond})
+	var warnings lockedBuffer
+	results := acquireLater(gate, ticket, &warnings)
+	time.Sleep(50 * time.Millisecond)
+	if err := held.Release(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-results:
+		if got.err != nil || got.lease == nil {
+			t.Fatalf("not admitted: %+v", got)
+		}
+		_ = got.lease.Release()
+	case <-time.After(5 * time.Second):
+		t.Fatal("a late probe blocked admission")
+	}
+	if !strings.Contains(warnings.String(), "WARNING") {
+		t.Fatalf("missing warning: %q", warnings.String())
+	}
+}
+
+// blockingProvider honors only cancellation, as the Provider contract allows.
+type blockingProvider struct{}
+
+func (blockingProvider) Sample(ctx context.Context) (pressure.Snapshot, error) {
+	<-ctx.Done()
+	return pressure.Snapshot{}, ctx.Err()
+}

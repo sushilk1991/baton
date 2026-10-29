@@ -19,6 +19,9 @@ const (
 	defaultPoll     = 250 * time.Millisecond
 	defaultRecovery = 2 * time.Second
 	defaultMargin   = 512 << 20
+	// lateProbe bounds a probe once max_wait is spent; a provider may honor
+	// only cancellation, and the probe then decides just the warning.
+	lateProbe = time.Second
 )
 
 // MemoryGate selects whether admission enforces memory policy.
@@ -172,14 +175,12 @@ func (gate *Gate) Acquire(ctx context.Context, ticket *queue.Ticket, memory uint
 }
 
 func (gate *Gate) probe(ctx context.Context, remaining time.Duration) (pressure.Snapshot, error) {
-	// A probe never outlasts the unspent budget; once it is spent, the
-	// provider's own timeout bounds the check made before admission.
-	probeCtx := ctx
-	if remaining > 0 {
-		var cancel context.CancelFunc
-		probeCtx, cancel = context.WithTimeout(ctx, remaining)
-		defer cancel()
+	// A probe never outlasts the unspent budget, or lateProbe once spent.
+	if remaining <= 0 {
+		remaining = lateProbe
 	}
+	probeCtx, cancel := context.WithTimeout(ctx, remaining)
+	defer cancel()
 	sample, err := gate.provider.Sample(probeCtx)
 	if err != nil {
 		return sample, err
