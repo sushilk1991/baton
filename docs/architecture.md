@@ -27,7 +27,9 @@ of combining `t.Setenv` with `t.Parallel`.
 
 CI checks Go 1.22 compatibility and Go 1.27, matching the required Docker
 image. Dependency caching is disabled until there are module dependencies.
-Windows runs vet, core tests, and a build without cgo.
+Windows runs vet, core tests, and a build without cgo. macos-latest (macOS
+26) runs Go 1.27 only: its dyld aborts Go 1.22 binaries with "missing
+LC_UUID load command", so a macOS 26 source build needs a newer Go.
 
 The required CI matrix retains `macos-13`. GitHub [retired that hosted
 runner](https://github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down/)

@@ -16,6 +16,11 @@ jobs:
         # SPEC.md requires macos-13; see docs/architecture.md for availability.
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-13, windows-latest]
         go: ["1.22.x", "1.27.x"]
+        # macOS 26 dyld aborts Go 1.22 binaries ("missing LC_UUID load
+        # command"), so macOS checks Go 1.27; Linux and Windows keep 1.22.
+        exclude:
+          - os: macos-latest
+            go: "1.22.x"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
