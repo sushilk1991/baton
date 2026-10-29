@@ -65,7 +65,12 @@ Fields overlay defaults individually. All counts are positive and
 New lanes default to one slot, a memory gate, and a 30-minute memory wait.
 An explicit unconfigured lane also gets one slot. `auto` is reserved.
 
-Regexes use Go's regexp syntax and match space-joined argv. Default order is
+Regexes use Go's regexp syntax. They match the executable's name after
+`env`, `sudo`, `time`, and `nice` wrappers, plus the operation for known
+dispatchers: `npm install`, `go build`, `npx remotion`, `python -m whisper`.
+Other arguments never select a lane, so `grep -r llama notes` runs
+immediately; `baton run`, shims, the Claude hook, and MCP `explain_lane`
+share this rule. Default order is
 encode, render, ml, install, build. Unlisted configured lanes follow in
 lexical order. A custom lane needs an earlier `match_order` entry to beat an
 overlapping built-in. Empty `matchers` disables auto matching for that lane.

@@ -222,16 +222,25 @@ func (config *Config) LaneNames() []string {
 }
 
 // AutoLane matches argv in configured order while leaving shell text opaque.
+// Matchers see only the executable after wrappers (env, sudo, time, nice)
+// and, for known dispatchers, its operation or launched tool. Arguments
+// never select a lane: grep -r llama notes stays unqueued, ollama run uses ml.
+//
+//	argv -> unwrap -> executable [+ operation] -> first matching lane
 func (config *Config) AutoLane(args []string) string {
-	if len(args) == 0 {
+	words := unwrapCommand(args)
+	if len(words) == 0 {
 		return ""
 	}
-	base := strings.ToLower(filepath.Base(strings.ReplaceAll(args[0], `\`, "/")))
+	base := strings.ToLower(filepath.Base(strings.ReplaceAll(words[0], `\`, "/")))
 	base = strings.TrimSuffix(base, ".exe")
 	if base == "sh" || base == "bash" || base == "zsh" || base == "cmd" || base == "powershell" || base == "pwsh" {
 		return ""
 	}
-	joined := strings.Join(args, " ")
+	joined := strings.Join(commandHead(words), " ")
+	if joined == "" {
+		return ""
+	}
 	for _, rule := range config.rules {
 		if rule.match.MatchString(joined) {
 			return rule.lane

@@ -34,6 +34,16 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"cargo", "build"}, "build"}, {[]string{"gradle", "build"}, "build"},
 		{[]string{"git", "status"}, ""}, {[]string{"npm", "info"}, ""},
 		{[]string{"sh", "-c", "ffmpeg -i in"}, ""},
+		// Arguments never select a lane; executables, wrappers, and known
+		// dispatcher operations do, exactly as for the Claude hook.
+		{[]string{"grep", "-r", "llama", "notes"}, ""},
+		{[]string{"git", "checkout", "-b", "fix/playwright-flake"}, ""},
+		{[]string{"git", "log", "--grep=chrome"}, ""},
+		{[]string{"ls", "chromium-build"}, ""},
+		{[]string{"./render-chrome.sh"}, ""},
+		{[]string{"ffmpeg", "--version"}, ""},
+		{[]string{"env", "FOO=1", "nice", "-n", "5", "ffmpeg", "-i", "in"}, "encode"},
+		{[]string{"ollama", "run", "llama3"}, "ml"},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)

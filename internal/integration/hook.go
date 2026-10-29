@@ -96,15 +96,6 @@ func rewriteHook(in io.Reader, out io.Writer, policy hookPolicy) error {
 	return json.NewEncoder(out).Encode(map[string]any{"hookSpecificOutput": map[string]any{"hookEventName": "PreToolUse", "updatedInput": request.Input}})
 }
 
-func queuedCommand(words []string) bool {
-	binary, _ := invokedBinary()
-	if len(words) < 2 || words[1] != "run" {
-		return false
-	}
-	base := filepath.Base(words[0])
-	return words[0] == binary || base == "baton" || base == "baton.exe"
-}
-
 func hookLane(command string, settings *config.Config) string {
 	// Recognize our exact prefix on repeated PreToolUse evaluation. The
 	// original remains separate shell syntax; no permission is granted here.
@@ -112,13 +103,10 @@ func hookLane(command string, settings *config.Config) string {
 	if len(segments) > 0 && holdPrefix(segments[0]) {
 		return ""
 	}
-	// An explicit reservation protects its segment, not later bare commands.
+	// An explicit reservation protects its segment, not later bare commands:
+	// baton run classifies as baton itself, which no lane matches.
 	for _, segment := range segments {
-		words := unwrapCommand(segment)
-		if queuedCommand(words) {
-			continue
-		}
-		if lane := settings.AutoLane(commandHead(words)); lane != "" {
+		if lane := settings.AutoLane(segment); lane != "" {
 			return lane
 		}
 	}
