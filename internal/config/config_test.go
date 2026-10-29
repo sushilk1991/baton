@@ -44,6 +44,10 @@ func TestAutoLane(t *testing.T) {
 		{[]string{"ffmpeg", "--version"}, ""},
 		{[]string{"env", "FOO=1", "nice", "-n", "5", "ffmpeg", "-i", "in"}, "encode"},
 		{[]string{"ollama", "run", "llama3"}, "ml"},
+		// Launchers keep the launched tool's own operation.
+		{[]string{"python", "-m", "pip", "install", "numpy"}, "install"},
+		{[]string{"python3", "-m", "pip", "list"}, ""},
+		{[]string{"pnpm", "exec", "cargo", "build"}, "build"},
 	} {
 		if got := settings.AutoLane(test.args); got != test.want {
 			t.Errorf("%v = %q, want %q", test.args, got, test.want)
@@ -333,4 +337,49 @@ func isolateHome(t *testing.T) {
 	}
 	t.Setenv("USERPROFILE", os.Getenv("HOME"))
 	t.Setenv("BATON", "")
+}
+
+// Matchers a user writes see the full argv, as v0.1.0 documented, so a
+// rule such as '^make render$' keeps reserving its lane. Built-in matchers
+// see only the executable and operation.
+func TestCustomMatchersSeeArgv(t *testing.T) {
+	config, err := decode("match_order = ['video']\n[lanes.video]\nmatchers = ['^make render$']\n", defaults(1, gib, Paths{CacheDir: t.TempDir()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"make", "render"}, "video"},
+		{[]string{"env", "CI=1", "make", "render"}, "video"},
+		{[]string{"make", "test"}, ""},
+		{[]string{"grep", "-r", "llama", "notes"}, ""},
+	} {
+		if got := config.AutoLane(test.args); got != test.want {
+			t.Errorf("%v = %q, want %q", test.args, got, test.want)
+		}
+	}
+}
+
+// baton itself never takes a lane, even under a catch-all custom matcher:
+// an explicit baton run or hold manages its own reservation, and an outer
+// one would let the inner run skip its lane's slots as a nested job.
+func TestAutoLaneSkipsBaton(t *testing.T) {
+	config, err := decode("[lanes.fallback]\nmatchers = ['.*']\n", defaults(1, gib, Paths{CacheDir: t.TempDir()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"baton", "run", "--lane", "encode", "--", "ffmpeg", "-i", "in", "out"},
+		{"sudo", "/opt/homebrew/bin/baton", "hold", "--lane", "encode", "--pid", "1"},
+		{`C:\tools\baton.exe`, "run", "--", "x"},
+	} {
+		if got := config.AutoLane(args); got != "" {
+			t.Errorf("%v = %q, want no lane", args, got)
+		}
+	}
+	if got := config.AutoLane([]string{"ls"}); got != "fallback" {
+		t.Fatalf("catch-all lane = %q", got)
+	}
 }

@@ -88,7 +88,8 @@ install again.
 The classifier checks executable names in each shell segment, after variable
 assignments and `sudo`, `time`, `nice`, or `env` wrappers. It recognizes
 install/build operations, npm-style tool launchers, and Python `-m` modules.
-Arguments such as `grep ffmpeg` never select a lane. The first matching
+Arguments such as `grep ffmpeg` never select a built-in lane; matchers you
+configure see the segment's full words ([configuration](configuration.md)). The first matching
 segment selects the lane for the whole command. Quoted separators,
 comments, and redirection targets are ignored. Shell expansions, functions, scripts, here-docs, and `env -S`
 are opaque. Use explicit `baton run` or shims for those forms.

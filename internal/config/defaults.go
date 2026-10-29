@@ -26,6 +26,17 @@ const (
 	recoveryTime  = "2s"
 )
 
+// builtinMatchers are the default lane regexes. They see only a command's
+// executable and operation (see AutoLane); any other matcher is the user's
+// own and sees the full argv.
+var builtinMatchers = map[string]string{
+	"encode":  `(?i)(^|[/\\\s])ffmpeg(\.exe)?(\s|$)`,
+	"render":  `(?i)(^|[/\\\s])[^\s]*(remotion|hyperframes|playwright|puppeteer|chrome|chromium)[^\s]*(\s|$)`,
+	"ml":      `(?i)(^|[/\\\s])[^\s]*(whisper|mlx|ollama|llama)[^\s]*(\s|$)`,
+	"install": `(?i)(^|[/\\\s])((npm|pnpm|yarn|bun)(\.exe)? (i|install|ci)|pip(3)?(\.exe)? install|uv(\.exe)? (pip|sync)|brew install|cargo install)(\s|$)`,
+	"build":   `(?i)(^|[/\\\s])(xcodebuild|gradle|cargo build|go build)(\s|$)`,
+}
+
 // These private DTOs expose fields only for TOML reflection. Other packages
 // receive resolved policy rather than mutable decoder state.
 type document struct {
@@ -101,14 +112,7 @@ func defaults(cores int, ram uint64, paths Paths) document {
 	}
 	// Preserve the existing default order; explicit match_order can put a
 	// custom lane first when its regex overlaps a built-in rule.
-	patterns := map[string]string{
-		"encode":  `(?i)(^|[/\\\s])ffmpeg(\.exe)?(\s|$)`,
-		"render":  `(?i)(^|[/\\\s])[^\s]*(remotion|hyperframes|playwright|puppeteer|chrome|chromium)[^\s]*(\s|$)`,
-		"ml":      `(?i)(^|[/\\\s])[^\s]*(whisper|mlx|ollama|llama)[^\s]*(\s|$)`,
-		"install": `(?i)(^|[/\\\s])((npm|pnpm|yarn|bun)(\.exe)? (i|install|ci)|pip(3)?(\.exe)? install|uv(\.exe)? (pip|sync)|brew install|cargo install)(\s|$)`,
-		"build":   `(?i)(^|[/\\\s])(xcodebuild|gradle|cargo build|go build)(\s|$)`,
-	}
-	for name, pattern := range patterns {
+	for name, pattern := range builtinMatchers {
 		slots := slotsFor(name, cores, ram)
 		doc.Lanes[name] = laneConfig{slots, slots, true, defaultWait, []string{pattern}}
 	}

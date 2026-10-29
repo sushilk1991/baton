@@ -6,9 +6,10 @@
 
 - `max_wait` counts only time blocked by memory. Waiting for a busy slot
   no longer spends it, and memory is checked again when the slot frees.
-- Lanes match executables and dispatcher operations, never arguments:
-  `grep -r llama notes` no longer queues in the ml lane. `baton run`,
-  shims, MCP `explain_lane`, and the Claude hook share one rule.
+- Built-in lane matchers see executables and dispatcher operations,
+  never arguments: `grep -r llama notes` no longer queues in the ml lane.
+  Matchers you write still see the full argv. `baton run`, shims, MCP
+  `explain_lane`, and the Claude hook share these rules.
 - A config that fails to load no longer breaks shimmed tools or
   hook-held commands; they warn and run unqueued.
 

@@ -105,17 +105,19 @@ func commandHead(words []string) []string {
 		if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
 			return head
 		}
-		return append(head, filepath.Base(target[0]))
+		// The launched tool keeps its own operation: npx cargo build.
+		return append(head, commandHead(target)...)
 	}
 	if (base == "npm" || base == "pnpm" || base == "yarn" || base == "bun") && (verb == "exec" || verb == "dlx" || verb == "x") {
 		target := commandOptions(words[2:], launcherOptions, launcherShell)
 		if len(target) == 0 || readOnlyCommand(target) || scriptCommand(target[0]) {
 			return head
 		}
-		return append(head, verb, filepath.Base(target[0]))
+		return append(append(head, verb), commandHead(target)...)
 	}
+	// A module keeps its operation too: python -m pip install numpy.
 	if (base == "python" || strings.HasPrefix(base, "python3")) && verb == "-m" && len(words) > 2 {
-		return append(head, verb, words[2])
+		return append(append(head, verb), commandHead(words[2:])...)
 	}
 	switch base {
 	case "npm", "pnpm", "yarn", "bun", "pip", "pip3", "uv", "brew", "cargo", "go":

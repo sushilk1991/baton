@@ -42,7 +42,18 @@ type Config struct {
 type laneRule struct {
 	lane  string
 	match *regexp.Regexp
+	scope matchScope
 }
+
+// matchScope selects the text a lane regex sees.
+type matchScope int
+
+const (
+	// matchHead gives built-in matchers the executable and its operation.
+	matchHead matchScope = iota
+	// matchArgv gives matchers the user wrote the full space-joined argv.
+	matchArgv
+)
 
 // Load overlays the optional user file on current machine defaults.
 func Load() (*Config, error) {
@@ -172,7 +183,11 @@ func compile(doc document) (*Config, error) {
 			if err != nil {
 				return nil, fmt.Errorf("lanes.%s.matchers: %w", name, err)
 			}
-			config.rules = append(config.rules, laneRule{name, match})
+			scope := matchArgv
+			if builtinPattern(pattern) {
+				scope = matchHead
+			}
+			config.rules = append(config.rules, laneRule{name, match, scope})
 		}
 	}
 	return config, nil
@@ -222,11 +237,13 @@ func (config *Config) LaneNames() []string {
 }
 
 // AutoLane matches argv in configured order while leaving shell text opaque.
-// Matchers see only the executable after wrappers (env, sudo, time, nice)
-// and, for known dispatchers, its operation or launched tool. Arguments
-// never select a lane: grep -r llama notes stays unqueued, ollama run uses ml.
+// Built-in matchers see only the executable after wrappers (env, sudo,
+// time, nice) and, for known dispatchers, its operation or launched tool,
+// so grep -r llama notes stays unqueued while ollama run uses ml. Matchers
+// the user wrote see the full unwrapped argv, e.g. '^make render$'.
 //
-//	argv -> unwrap -> executable [+ operation] -> first matching lane
+//	argv -> unwrap -> built-in: executable [+ operation] -> first lane
+//	                  user:     whole argv              -/
 func (config *Config) AutoLane(args []string) string {
 	words := unwrapCommand(args)
 	if len(words) == 0 {
@@ -237,16 +254,33 @@ func (config *Config) AutoLane(args []string) string {
 	if base == "sh" || base == "bash" || base == "zsh" || base == "cmd" || base == "powershell" || base == "pwsh" {
 		return ""
 	}
-	joined := strings.Join(commandHead(words), " ")
-	if joined == "" {
+	// baton never queues behind itself: an explicit baton run or hold takes
+	// its own lane, and an outer reservation would let it skip that lane's
+	// slots as a nested job.
+	if base == "baton" {
 		return ""
 	}
+	head := strings.Join(commandHead(words), " ")
+	argv := strings.Join(words, " ")
 	for _, rule := range config.rules {
-		if rule.match.MatchString(joined) {
+		text := head
+		if rule.scope == matchArgv {
+			text = argv
+		}
+		if text != "" && rule.match.MatchString(text) {
 			return rule.lane
 		}
 	}
 	return ""
+}
+
+func builtinPattern(pattern string) bool {
+	for _, builtin := range builtinMatchers {
+		if pattern == builtin {
+			return true
+		}
+	}
+	return false
 }
 
 // Write emits effective TOML, including inherited defaults and matcher order.
