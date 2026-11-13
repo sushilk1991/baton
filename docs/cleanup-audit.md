@@ -69,3 +69,18 @@ The remaining allocation joins argv. These measure matching, not config
 loading or process discovery. Existing policy, override, empty-reap-list,
 and invalid-pattern tests pass. Native and Linux `make check` pass; pinned
 lint reports 0 issues. Logs: `regex-*.log` in the same artifact directory.
+
+## Program-name normalization
+
+Delete commandBase and use the existing cross-platform programName helper
+at its three call sites. Wrapper unwrapping, dispatchers/Python modules,
+and read-only queries now agree with baton/self detection about basenames.
+
+Five assertions failed before the fix on macOS: backslash-path env/uv/
+Python lost their heavy lanes, ollama list incorrectly selected ml, and
+env BATON=off retained an executable. All pass after the fix. Native and
+Linux `make check` pass; pinned lint reports 0 issues. Logs: `names-*.log`.
+
+Verification covers local macOS/Linux and cross-compilation for all five
+targets. Windows runtime and hosted CI were not exercised. No push, tag,
+release, remote change, or real agent-settings write was performed.

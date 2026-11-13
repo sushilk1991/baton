@@ -5,10 +5,14 @@
 Decision: one isolated change and commit per iteration; SPEC.md stays fixed.
 Done: index process-tree RSS lookups, make the MCP handshake phase explicit,
 and retain compiled reap/shim regexes. Wire behavior and guards are preserved.
+Removed the duplicate program-name normalizer; backslash-path wrapper and
+query classification now uses the shared cross-platform helper.
 Verified per iteration: native and Linux make check and pinned lint
 (0 issues), plus matcher/RSS benchmarks and handshake tests before/after.
 Test homes and XDG paths are temporary. See docs/cleanup-audit.md for details.
-Next: remove the duplicate program-name normalizer and verify classification.
+Verified: five new path-classification assertions fail before the fix and
+pass afterward, followed by native/Linux make check and pinned lint.
+Next: read the independent cumulative review, then finish the audit.
 
 ## v0.1.1 released (2026-10-29)
 

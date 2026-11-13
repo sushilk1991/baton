@@ -68,3 +68,5 @@ fix, then green. Order is severity.
   notification ordering, failed initialization, and duplicate handling.
 - [x] Retain validated reap and shim regexes in Config instead of
   compiling them on each match; compare matcher benchmarks.
+- [x] Use one program-name normalizer for wrapper, dispatcher, and
+  read-only classification; cover backslash paths across platforms.

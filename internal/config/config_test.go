@@ -255,6 +255,31 @@ func TestDefaultSlots(t *testing.T) {
 	}
 }
 
+// Program paths use the same normalization in wrappers and tool operations.
+func TestAutoLanePortableProgramNames(t *testing.T) {
+	settings, err := compile(defaults(1, gib, Paths{CacheDir: t.TempDir()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{`C:\tools\env.exe`, "FOO=1", "ffmpeg", "-i", "in", "out"}, "encode"},
+		{[]string{`C:\tools\uv.exe`, "run", "whisper", "audio.wav"}, "ml"},
+		{[]string{`C:\tools\python3.exe`, "-m", "mlx_whisper", "audio.wav"}, "ml"},
+		{[]string{`C:\tools\ollama.exe`, "list"}, ""},
+		{[]string{`C:\tools\xcodebuild.exe`, "-showBuildSettings"}, ""},
+	} {
+		if got := settings.AutoLane(tc.args); got != tc.want {
+			t.Errorf("%v: lane %q, want %q", tc.args, got, tc.want)
+		}
+	}
+	if got := Executable([]string{`C:\tools\env.exe`, "BATON=off", "ffmpeg"}); got != "" {
+		t.Errorf("disabled wrapper executable %q, want empty", got)
+	}
+}
+
 func TestPartialAndCustom(t *testing.T) {
 	doc := defaults(12, 36*gib, Paths{CacheDir: t.TempDir()})
 	config, err := decode(`match_order = ['video']

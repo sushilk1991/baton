@@ -87,10 +87,6 @@ var dispatchers = map[string]dispatcherOptions{
 	"brew":       {},
 }
 
-func commandBase(word string) string {
-	return strings.TrimSuffix(strings.ToLower(filepath.Base(word)), ".exe")
-}
-
 func assignment(word string) bool {
 	name, _, found := strings.Cut(word, "=")
 	if !found || name == "" {
@@ -118,7 +114,7 @@ func unwrapCommand(words []string) []string {
 			words = words[1:]
 			continue
 		}
-		switch commandBase(words[0]) {
+		switch programName(words[0]) {
 		case "sudo":
 			words = commandOptions(words[1:], "-u -g -h -p -C -T -R -D -r -t --user --group --host --prompt --close-from --command-timeout --chroot --chdir --role --type", "-s -i --shell --login")
 		case "time":
@@ -304,7 +300,7 @@ func nestedHead(words []string, depth int) []string {
 		return head
 	}
 
-	base := commandBase(words[0])
+	base := programName(words[0])
 	if base == "python" || strings.HasPrefix(base, "python3") {
 		// A module keeps its operation too: python -m pip install numpy.
 		return append(head, pythonModule(words[1:], depth)...)
@@ -486,7 +482,7 @@ func pythonModule(args []string, depth int) []string {
 
 func readOnlyCommand(words []string) bool {
 	// Inspect literal flags only, never text embedded in an argument.
-	base := commandBase(words[0])
+	base := programName(words[0])
 	for _, argument := range words[1:] {
 		if argument == helpFlag || argument == versionFlag {
 			return true
