@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.2 (2026-11-13)
+
+### Fixed
+
+- Executable names use the same normalization through wrappers,
+  dispatchers, and read-only checks. Backslash paths and `.exe` names
+  retain their build/install lanes; read-only queries and `BATON=off`
+  assignments keep their bypass behavior. Custom matchers still see the
+  original argv.
+
+### Changed
+
+- Process-tree RSS sampling indexes process IDs once instead of scanning
+  the process list for each descendant, reducing work for large trees.
+- Reap and shim matching reuse the regexes compiled during config loading.
+- The MCP handshake uses one explicit phase while preserving message
+  ordering and error behavior.
+
 ## v0.1.1 (2026-10-29)
 
 ### Fixed

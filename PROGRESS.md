@@ -1,5 +1,16 @@
 # Progress
 
+## v0.1.2 release (2026-11-13)
+
+Decision: publish the five verified cleanup commits as a patch release.
+The owner explicitly authorized pushing and publishing on GitHub.
+Done: prepare the changelog; no source or workflow changes after the audit.
+Verified: origin/main has no new commits; v0.1.1 is the latest release.
+Next: push main, check hosted CI, tag, inspect the draft assets, publish,
+and verify the public installer in an isolated home.
+The retired macos-13 requirement remains tracked by ordinary CI; the
+separate release workflow gates on available runners.
+
 ## Cleanup audit (2026-11-13)
 
 Decision: one isolated change and commit per iteration; SPEC.md stays fixed.

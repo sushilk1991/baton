@@ -72,3 +72,9 @@ fix, then green. Order is severity.
   read-only classification; cover backslash paths across platforms.
 - [x] Normalize non-scoped executable heads before built-in lane matching
   so .exe build/install tools retain their lanes; preserve scoped packages.
+
+## v0.1.2 release (2026-11-13)
+
+- [ ] Push the cleanup commits, gate the tag on hosted checks, verify all
+  release archive checksums and the native binary, publish v0.1.2, and
+  exercise the public installer in an isolated home.
