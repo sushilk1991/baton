@@ -36,9 +36,11 @@ type Policy struct {
 
 // Config holds validated policy; callers cannot mutate its source document.
 type Config struct {
-	doc   document
-	lanes map[string]Policy
-	rules []laneRule
+	doc       document
+	lanes     map[string]Policy
+	rules     []laneRule
+	reapRules []*regexp.Regexp
+	shimRules map[string][]*regexp.Regexp
 }
 
 type laneRule struct {
@@ -141,7 +143,8 @@ func decode(text string, doc document) (*Config, error) {
 }
 
 func compile(doc document) (*Config, error) {
-	if err := validateExtras(doc); err != nil {
+	config := &Config{doc: doc, lanes: make(map[string]Policy)}
+	if err := config.compileExtras(); err != nil {
 		return nil, err
 	}
 	margin, err := ParseBytes(doc.Memory.Margin)
@@ -156,7 +159,6 @@ func compile(doc document) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	config := &Config{doc: doc, lanes: make(map[string]Policy)}
 	names := make([]string, 0, len(doc.Lanes))
 	for name := range doc.Lanes {
 		names = append(names, name)

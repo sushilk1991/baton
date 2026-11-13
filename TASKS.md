@@ -66,3 +66,5 @@ fix, then green. Order is severity.
   cycle, missing-root, and overflow behavior and compare benchmarks.
 - [x] Represent the MCP handshake with one phase; preserve early ping,
   notification ordering, failed initialization, and duplicate handling.
+- [x] Retain validated reap and shim regexes in Config instead of
+  compiling them on each match; compare matcher benchmarks.

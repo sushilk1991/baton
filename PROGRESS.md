@@ -3,12 +3,12 @@
 ## Cleanup audit (2026-11-13)
 
 Decision: one isolated change and commit per iteration; SPEC.md stays fixed.
-Done: index process-tree RSS lookups and replace the MCP handshake's two
-booleans with one phase. Wire behavior and sampling guards are preserved.
+Done: index process-tree RSS lookups, make the MCP handshake phase explicit,
+and retain compiled reap/shim regexes. Wire behavior and guards are preserved.
 Verified per iteration: native and Linux make check and pinned lint
-(0 issues), plus RSS benchmarks and handshake-ordering tests before/after.
+(0 issues), plus matcher/RSS benchmarks and handshake tests before/after.
 Test homes and XDG paths are temporary. See docs/cleanup-audit.md for details.
-Next: remove repeated regex compilation from reap and shim matching.
+Next: remove the duplicate program-name normalizer and verify classification.
 
 ## v0.1.1 released (2026-10-29)
 

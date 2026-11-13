@@ -1,9 +1,6 @@
 package config
 
-import (
-	"regexp"
-	"strings"
-)
+import "strings"
 
 // ShimCommands returns a detached list of the configured default shims.
 func (config *Config) ShimCommands() []string {
@@ -13,9 +10,8 @@ func (config *Config) ShimCommands() []string {
 // ShimBypass matches command arguments against validated fast-path rules.
 func (config *Config) ShimBypass(command string, args []string) bool {
 	joined := strings.Join(args, " ")
-	for _, pattern := range config.doc.Shims.FastPaths[command] {
-		// Load already validates every pattern; source policy stays private.
-		if regexp.MustCompile(pattern).MatchString(joined) {
+	for _, rule := range config.shimRules[command] {
+		if rule.MatchString(joined) {
 			return true
 		}
 	}

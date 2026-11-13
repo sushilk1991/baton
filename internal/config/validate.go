@@ -18,7 +18,8 @@ func positiveDuration(key, value string) (time.Duration, error) {
 	return duration, nil
 }
 
-func validateExtras(doc document) error {
+func (config *Config) compileExtras() error {
+	doc := config.doc
 	for _, entry := range []struct{ key, value string }{
 		{"reap.older_than", doc.Reap.OlderThan},
 		{"reap.grace_period", doc.Reap.GracePeriod},
@@ -60,17 +61,22 @@ func validateExtras(doc document) error {
 			return fmt.Errorf("shims.commands: invalid command %q", command)
 		}
 	}
+	config.shimRules = make(map[string][]*regexp.Regexp, len(doc.Shims.FastPaths))
 	for command, patterns := range doc.Shims.FastPaths {
 		if !validCommand(command) {
 			return fmt.Errorf("shims.fast_paths: invalid command %q", command)
 		}
-		if err := validateRegex("shims.fast_paths."+command, patterns); err != nil {
+		rules, err := compileRegex("shims.fast_paths."+command, patterns)
+		if err != nil {
 			return err
 		}
+		config.shimRules[command] = rules
 	}
-	if err := validateRegex("reap.matchers", doc.Reap.Matchers); err != nil {
+	rules, err := compileRegex("reap.matchers", doc.Reap.Matchers)
+	if err != nil {
 		return err
 	}
+	config.reapRules = rules
 	for _, name := range doc.Cache.Env {
 		if !envName.MatchString(name) {
 			return fmt.Errorf("cache.env: invalid environment variable %q", name)
@@ -86,11 +92,15 @@ func validCommand(command string) bool {
 	return command != "" && command != "." && command != ".." && !strings.ContainsAny(command, "/\\\x00\r\n\t ")
 }
 
-func validateRegex(key string, patterns []string) error {
+// Retain validated regexes so matching never reparses policy or panics.
+func compileRegex(key string, patterns []string) ([]*regexp.Regexp, error) {
+	rules := make([]*regexp.Regexp, 0, len(patterns))
 	for _, pattern := range patterns {
-		if _, err := regexp.Compile(pattern); err != nil {
-			return fmt.Errorf("%s: %w", key, err)
+		rule, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
 		}
+		rules = append(rules, rule)
 	}
-	return nil
+	return rules, nil
 }

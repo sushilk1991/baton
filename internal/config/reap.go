@@ -1,7 +1,6 @@
 package config
 
 import (
-	"regexp"
 	"strings"
 	"time"
 )
@@ -16,8 +15,8 @@ func (config *Config) ReapTiming() (time.Duration, time.Duration) {
 // ReapMatch restricts eligible heavy processes using the configured regexes.
 func (config *Config) ReapMatch(args []string) bool {
 	joined := strings.Join(args, " ")
-	for _, pattern := range config.doc.Reap.Matchers {
-		if regexp.MustCompile(pattern).MatchString(joined) {
+	for _, rule := range config.reapRules {
+		if rule.MatchString(joined) {
 			return true
 		}
 	}

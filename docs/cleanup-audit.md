@@ -50,3 +50,22 @@ ping, premature/repeated notifications, invalid initialization, tool calls
 between handshake steps, and duplicate initialization. Native and Linux
 `make check` pass; pinned lint reports 0 issues. Logs: `mcp-*.log` in the
 same temporary artifact directory.
+
+## Reap and shim matchers
+
+Retain the regexes already compiled during config validation, as lane rules
+do. Matching reads those immutable regexes instead of invoking MustCompile
+per process or shim call. Overrides, empty lists, and validation remain in
+the existing config path; no new exported surface or matcher layer.
+
+Native benchmarks, three samples (median), using ffmpeg argv:
+
+| Matcher | Before | After | Allocations before | After |
+| --- | ---: | ---: | ---: | ---: |
+| Reap | 5.469 us | 0.113 us | 78 | 1 |
+| Shim | 4.389 us | 0.688 us | 93 | 1 |
+
+The remaining allocation joins argv. These measure matching, not config
+loading or process discovery. Existing policy, override, empty-reap-list,
+and invalid-pattern tests pass. Native and Linux `make check` pass; pinned
+lint reports 0 issues. Logs: `regex-*.log` in the same artifact directory.
