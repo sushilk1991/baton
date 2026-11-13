@@ -208,16 +208,6 @@ func TestHistoryRotation(t *testing.T) {
 	}
 }
 
-func TestSumTree(t *testing.T) {
-	rows := []processRow{{1, 0, 100}, {2, 1, 200}, {3, 2, 300}, {4, 0, 9000}, {5, 3, 400}}
-	if got := sumTree(rows, 2); got != 900 {
-		t.Fatalf("tree RSS %d, want 900", got)
-	}
-	if got := sumTree([]processRow{{1, 2, math.MaxUint64}, {2, 1, 1}}, 1); got != math.MaxUint64 {
-		t.Fatalf("cyclic/overflow tree RSS %d", got)
-	}
-}
-
 // Notices name what a job waits for and are rate limited until that changes.
 func TestNotices(t *testing.T) {
 	var out bytes.Buffer

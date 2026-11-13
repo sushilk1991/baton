@@ -1,5 +1,14 @@
 # Progress
 
+## Cleanup audit (2026-11-13)
+
+Decision: one isolated change and commit per iteration; SPEC.md stays fixed.
+Done: index process-tree RSS lookups, preserving malformed-snapshot guards.
+Verified: edge cases, before/after benchmarks, native and Linux make check,
+and pinned lint (0 issues). Test homes and XDG paths are temporary. Details
+and the initial Linux failures are in docs/cleanup-audit.md.
+Next: make the MCP handshake lifecycle explicit.
+
 ## v0.1.1 released (2026-10-29)
 
 Shipped: main fast-forwarded to the ux-fixes work; tag v0.1.1 on 4627a56

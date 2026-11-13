@@ -9,9 +9,14 @@ type processRow struct {
 }
 
 func sumTree(rows []processRow, root int) uint64 {
-	children := make(map[int][]processRow)
+	children := make(map[int][]int, len(rows))
+	rss := make(map[int]uint64, len(rows))
 	for _, row := range rows {
-		children[row.parent] = append(children[row.parent], row)
+		children[row.parent] = append(children[row.parent], row.pid)
+		// Keep the first sample when a PID appears twice in a raced snapshot.
+		if _, exists := rss[row.pid]; !exists {
+			rss[row.pid] = row.rss
+		}
 	}
 	pending := []int{root}
 	seen := make(map[int]bool)
@@ -25,19 +30,11 @@ func sumTree(rows []processRow, root int) uint64 {
 			continue
 		}
 		seen[pid] = true
-		for _, row := range children[pid] {
-			pending = append(pending, row.pid)
+		pending = append(pending, children[pid]...)
+		if math.MaxUint64-total < rss[pid] {
+			return math.MaxUint64
 		}
-		for _, row := range rows {
-			if row.pid != pid {
-				continue
-			}
-			if math.MaxUint64-total < row.rss {
-				return math.MaxUint64
-			}
-			total += row.rss
-			break
-		}
+		total += rss[pid]
 	}
 	return total
 }
