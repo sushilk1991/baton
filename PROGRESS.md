@@ -3,11 +3,12 @@
 ## Cleanup audit (2026-11-13)
 
 Decision: one isolated change and commit per iteration; SPEC.md stays fixed.
-Done: index process-tree RSS lookups, preserving malformed-snapshot guards.
-Verified: edge cases, before/after benchmarks, native and Linux make check,
-and pinned lint (0 issues). Test homes and XDG paths are temporary. Details
-and the initial Linux failures are in docs/cleanup-audit.md.
-Next: make the MCP handshake lifecycle explicit.
+Done: index process-tree RSS lookups and replace the MCP handshake's two
+booleans with one phase. Wire behavior and sampling guards are preserved.
+Verified per iteration: native and Linux make check and pinned lint
+(0 issues), plus RSS benchmarks and handshake-ordering tests before/after.
+Test homes and XDG paths are temporary. See docs/cleanup-audit.md for details.
+Next: remove repeated regex compilation from reap and shim matching.
 
 ## v0.1.1 released (2026-10-29)
 

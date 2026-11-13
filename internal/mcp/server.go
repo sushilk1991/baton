@@ -43,7 +43,17 @@ type response struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-type server struct{ initialized, ready bool }
+type sessionPhase uint8
+
+const (
+	sessionNew sessionPhase = iota
+	sessionInitialized
+	sessionReady
+)
+
+// initialize -> initialized notification -> tool access. Failed requests
+// never advance the handshake; ping remains available in every phase.
+type server struct{ phase sessionPhase }
 
 // Run accepts only the stdio transport; stdout contains JSON-RPC alone.
 func Run(args []string, in io.Reader, out, diagnostics io.Writer) int {
@@ -88,8 +98,8 @@ func (s *server) message(data []byte) *response {
 		return failure(nil, invalidRequest, "invalid JSON-RPC request")
 	}
 	if len(req.ID) == 0 {
-		if req.Method == "notifications/initialized" && s.initialized {
-			s.ready = true
+		if req.Method == "notifications/initialized" && s.phase == sessionInitialized {
+			s.phase = sessionReady
 		}
 		return nil
 	}
@@ -99,7 +109,7 @@ func (s *server) message(data []byte) *response {
 	if req.Method == "initialize" {
 		return s.initialize(req)
 	}
-	if !s.ready {
+	if s.phase != sessionReady {
 		return failure(req.ID, notReady, "initialize and send notifications/initialized first")
 	}
 	switch req.Method {
@@ -136,7 +146,7 @@ func validID(id json.RawMessage) bool {
 }
 
 func (s *server) initialize(req request) *response {
-	if s.initialized {
+	if s.phase != sessionNew {
 		return failure(req.ID, invalidRequest, "already initialized")
 	}
 	var params struct {
@@ -157,7 +167,7 @@ func (s *server) initialize(req request) *response {
 			break
 		}
 	}
-	s.initialized = true
+	s.phase = sessionInitialized
 	return success(req.ID, map[string]any{"protocolVersion": version, "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "baton", "version": strings.TrimPrefix(buildinfo.Version(), "v")}})
 }
 

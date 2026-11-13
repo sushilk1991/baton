@@ -26,7 +26,7 @@ func isolate(t *testing.T) {
 	t.Setenv("BATON", "")
 }
 
-func readyServer() *server { return &server{initialized: true, ready: true} }
+func readyServer() *server { return &server{phase: sessionReady} }
 
 func TestProtocolErrors(t *testing.T) {
 	isolate(t)
@@ -66,7 +66,7 @@ func TestLifecycle(t *testing.T) {
 	if reply := s.message([]byte(request)); reply.Error == nil {
 		t.Fatal("reinitialization accepted")
 	}
-	if reply := s.message([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)); reply != nil || !s.ready {
+	if reply := s.message([]byte(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)); reply != nil {
 		t.Fatalf("notification: %+v", reply)
 	}
 	if reply := s.message([]byte(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":"gc_candidates","arguments":{}}}`)); reply != nil {
@@ -81,6 +81,51 @@ func TestLifecycle(t *testing.T) {
 	reply = s.message([]byte(request))
 	if reply.Result.(map[string]any)["protocolVersion"] != protocolVersion {
 		t.Fatalf("fallback: %+v", reply)
+	}
+}
+
+// Handshake errors and premature notifications must never unlock tool access.
+func TestHandshakeOrdering(t *testing.T) {
+	isolate(t)
+	s := &server{}
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`
+	notification := `{"jsonrpc":"2.0","method":"notifications/initialized"}`
+	list := `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`
+	for _, step := range []struct {
+		name, input string
+		code        int
+	}{
+		{"early ping", `{"jsonrpc":"2.0","id":0,"method":"ping"}`, 0},
+		{"premature notification", notification, 0},
+		{"still new", list, notReady},
+		{"invalid initialization", `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`, invalidParams},
+		{"still uninitialized", list, notReady},
+		{"initialize", initialize, 0},
+		{"await notification", list, notReady},
+		{"duplicate initialization", initialize, invalidRequest},
+		{"still awaiting notification", list, notReady},
+		{"initialized", notification, 0},
+		{"tools available", list, 0},
+		{"duplicate notification", notification, 0},
+		{"tools remain available", list, 0},
+		{"reject reinitialization", initialize, invalidRequest},
+	} {
+		reply := s.message([]byte(step.input))
+		if step.input == notification {
+			if reply != nil {
+				t.Fatalf("%s: notification got a response: %+v", step.name, reply)
+			}
+			continue
+		}
+		if reply == nil {
+			t.Fatalf("%s: missing response", step.name)
+		}
+		if step.code == 0 && reply.Error != nil {
+			t.Fatalf("%s: %+v", step.name, reply.Error)
+		}
+		if step.code != 0 && (reply.Error == nil || reply.Error.Code != step.code) {
+			t.Fatalf("%s: %+v, want error %d", step.name, reply, step.code)
+		}
 	}
 }
 

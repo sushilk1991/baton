@@ -64,3 +64,5 @@ fix, then green. Order is severity.
 
 - [x] Index RSS by PID during process-tree sampling; retain duplicate,
   cycle, missing-root, and overflow behavior and compare benchmarks.
+- [x] Represent the MCP handshake with one phase; preserve early ping,
+  notification ordering, failed initialization, and duplicate handling.

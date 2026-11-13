@@ -33,3 +33,20 @@ deadline failure's exact cause remains unknown. No check was weakened.
 
 Raw logs and the isolation harness: `/tmp/baton-audit-SQCacg/rss-*.log` and
 `/tmp/baton-audit-SQCacg/isolated.py` (temporary local artifacts).
+
+## MCP handshake
+
+Replace `initialized, ready bool` with one private phase. The state
+`initialized=false, ready=true` has no corresponding phase.
+
+```text
+ NEW -- initialize --> INITIALIZED -- notification --> READY
+  |                         |                           |
+  +---- tools rejected -----+                     tools allowed
+```
+
+Wire-level ordering tests pass both before and after the refactor: early
+ping, premature/repeated notifications, invalid initialization, tool calls
+between handshake steps, and duplicate initialization. Native and Linux
+`make check` pass; pinned lint reports 0 issues. Logs: `mcp-*.log` in the
+same temporary artifact directory.
