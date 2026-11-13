@@ -289,9 +289,10 @@ func nestedHead(words []string, depth int) []string {
 		return nil
 	}
 
-	// Directory names are not tool names, e.g. /opt/chrome-tools/grep, but
-	// a scoped npm package keeps its scope: npx @playwright/test.
-	name := filepath.Base(words[0])
+	// Built-in matchers see normalized executable names, including .exe
+	// paths, but scoped npm packages keep their scope: npx @playwright/test.
+	base := programName(words[0])
+	name := base
 	if strings.HasPrefix(words[0], "@") {
 		name = words[0]
 	}
@@ -300,7 +301,6 @@ func nestedHead(words []string, depth int) []string {
 		return head
 	}
 
-	base := programName(words[0])
 	if base == "python" || strings.HasPrefix(base, "python3") {
 		// A module keeps its operation too: python -m pip install numpy.
 		return append(head, pythonModule(words[1:], depth)...)

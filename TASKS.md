@@ -70,3 +70,5 @@ fix, then green. Order is severity.
   compiling them on each match; compare matcher benchmarks.
 - [x] Use one program-name normalizer for wrapper, dispatcher, and
   read-only classification; cover backslash paths across platforms.
+- [x] Normalize non-scoped executable heads before built-in lane matching
+  so .exe build/install tools retain their lanes; preserve scoped packages.

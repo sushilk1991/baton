@@ -268,6 +268,13 @@ func TestAutoLanePortableProgramNames(t *testing.T) {
 		{[]string{`C:\tools\env.exe`, "FOO=1", "ffmpeg", "-i", "in", "out"}, "encode"},
 		{[]string{`C:\tools\uv.exe`, "run", "whisper", "audio.wav"}, "ml"},
 		{[]string{`C:\tools\python3.exe`, "-m", "mlx_whisper", "audio.wav"}, "ml"},
+		{[]string{`C:\tools\cargo.exe`, "build"}, "build"},
+		{[]string{`C:\tools\go.exe`, "build", "./..."}, "build"},
+		{[]string{`C:\tools\gradle.exe`, "build"}, "build"},
+		{[]string{`C:\tools\xcodebuild.exe`, "test"}, "build"},
+		{[]string{`C:\tools\cargo.exe`, "install", "tool"}, "install"},
+		{[]string{`C:\tools\brew.exe`, "install", "tool"}, "install"},
+		{[]string{`C:\tools\uv.exe`, "run", `C:\tools\cargo.exe`, "build"}, "build"},
 		{[]string{`C:\tools\ollama.exe`, "list"}, ""},
 		{[]string{`C:\tools\xcodebuild.exe`, "-showBuildSettings"}, ""},
 	} {
@@ -538,7 +545,7 @@ func isolateHome(t *testing.T) {
 // rule such as '^make render$' keeps reserving its lane. Built-in matchers
 // see only the executable and operation.
 func TestCustomMatchersSeeArgv(t *testing.T) {
-	config, err := decode("match_order = ['video']\n[lanes.video]\nmatchers = ['^make render$']\n", defaults(1, gib, Paths{CacheDir: t.TempDir()}))
+	config, err := decode("match_order = ['video']\n[lanes.video]\nmatchers = ['^make render$', '^/Opt/Tools/BUILD[.]exe RELEASE$']\n", defaults(1, gib, Paths{CacheDir: t.TempDir()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -548,6 +555,8 @@ func TestCustomMatchersSeeArgv(t *testing.T) {
 	}{
 		{[]string{"make", "render"}, "video"},
 		{[]string{"env", "CI=1", "make", "render"}, "video"},
+		{[]string{"/Opt/Tools/BUILD.exe", "RELEASE"}, "video"},
+		{[]string{"/opt/tools/build.exe", "RELEASE"}, ""},
 		{[]string{"make", "test"}, ""},
 		{[]string{"grep", "-r", "llama", "notes"}, ""},
 	} {

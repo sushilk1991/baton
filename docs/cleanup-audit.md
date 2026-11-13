@@ -81,6 +81,23 @@ Python lost their heavy lanes, ollama list incorrectly selected ml, and
 env BATON=off retained an executable. All pass after the fix. Native and
 Linux `make check` pass; pinned lint reports 0 issues. Logs: `names-*.log`.
 
+## Executable heads and final review
+
+The independent Muse review found no strict regression in the first four
+changes. It identified a pre-existing gap: built-in matchers still received
+raw executable basenames, so .exe build/install commands missed their lane.
+
+Normalize only the executable names supplied to built-in matchers, keeping
+scoped npm package names intact. Seven cases fail before the fix and pass
+afterward: cargo/go/gradle/xcodebuild builds, cargo/brew installs, and a
+nested uv-to-cargo build. Custom regexes retain the original argv's path
+and case; regression cases cover that contract. Native and Linux
+`make check` pass; pinned lint reports 0 issues. Logs: `heads-*.log`.
+
+The review's sole finding is addressed. Retained input revalidation and
+per-shim journal writes protect stale-input and interruption behavior;
+removing them would change those guarantees. No further cleanup is queued.
+
 Verification covers local macOS/Linux and cross-compilation for all five
 targets. Windows runtime and hosted CI were not exercised. No push, tag,
 release, remote change, or real agent-settings write was performed.

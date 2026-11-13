@@ -7,12 +7,17 @@ Done: index process-tree RSS lookups, make the MCP handshake phase explicit,
 and retain compiled reap/shim regexes. Wire behavior and guards are preserved.
 Removed the duplicate program-name normalizer; backslash-path wrapper and
 query classification now uses the shared cross-platform helper.
+Normalized built-in executable heads so .exe build/install tools keep lanes.
 Verified per iteration: native and Linux make check and pinned lint
 (0 issues), plus matcher/RSS benchmarks and handshake tests before/after.
 Test homes and XDG paths are temporary. See docs/cleanup-audit.md for details.
 Verified: five new path-classification assertions fail before the fix and
 pass afterward, followed by native/Linux make check and pinned lint.
-Next: read the independent cumulative review, then finish the audit.
+Review: Muse found no strict regression in the first four changes and one
+pre-existing .exe matching gap. Seven new assertions reproduced it; the fix
+passes those, custom-argv preservation tests, and all three full gates.
+Next: no remaining audit queue items. Windows runtime and hosted CI remain
+unexercised; local commits only. No release or settings changes were made.
 
 ## v0.1.1 released (2026-10-29)
 
