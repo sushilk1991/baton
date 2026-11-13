@@ -2,6 +2,55 @@ Not verified: the retired macos-13 runner, Windows beyond its core test
 suite, live agent loading, and the Linux and Intel macOS Homebrew
 installs.
 
+## v0.1.2 release (2026-11-13 UTC)
+
+Tag [v0.1.2](https://github.com/sushilk1991/baton/releases/tag/v0.1.2)
+points to 9e6cac0, the five cleanup commits plus the changelog preparation.
+[Release workflow 43484749666](https://github.com/sushilk1991/baton/actions/runs/43484749666)
+passed Linux amd64/arm64 and macOS `make check`, Windows vet/core tests/build,
+then GoReleaser v2.19.0 and formula generation. Ordinary tag CI
+43484749681 also passed lint, both Windows versions, Linux arm64 on both
+Go versions, and all Go 1.27 jobs. The retired macos-13 placeholders were
+cancelled only after every runnable job finished.
+
+The Go 1.22 Linux amd64 race process crashed three times in main CI
+43481815757. A verbose
+[baseline comparison](https://github.com/sushilk1991/baton/actions/runs/43484079833)
+reproduced the same SIGSEGV at entry to TestParentJobControl in both the
+unchanged v0.1.1 baseline (8f279e0) and current source (9e6cac0). Current
+source passed the isolated runner suite in diagnostic run 43483579986.
+The full-suite crash's cause remains unproven; a read-only Muse review
+found no native buffer defect and suggested the old race runtime as a
+hypothesis. This is an unresolved legacy-test gap, not a green full matrix.
+The first baseline diagnostic could not fetch a short SHA; the comparison
+above uses full SHAs. Neither tests nor workflow checks were weakened.
+
+Before publication:
+
+- All five downloaded archives matched checksums.txt and contained the
+  expected binary, LICENSE, README.md, and updated CHANGELOG.md.
+- Every binary embeds module v0.1.2, full revision
+  9e6cac07e3437afb1a58b610c348051325b21af9, and vcs.modified=false.
+- The attached baton.rb exactly matches the formula rendered from the
+  manifest. The separate Homebrew tap has not been updated.
+- The macOS arm64 archive passed version, help, run, exit-code passthrough,
+  status JSON, MCP handshake ordering, and seven command classifications.
+  An initial smoke fixture incorrectly expected `brew install baton` to
+  queue; the documented self-name bypass was preserved. The corrected
+  fixture checks both `brew install ffmpeg` and the self-name bypass.
+
+After publication, GitHub latest readback showed v0.1.2, published rather
+than draft/prerelease, with all seven assets. Public tagged install.sh
+matched source, downloaded latest with SHA-256 verification, and installed
+the exact checked native binary. It and `go install ...@v0.1.2` report
+`baton v0.1.2` on macOS arm64. The Linux arm64 archive also passed
+version/run/status inside a container. Every smoke/install environment
+uses private HOME, USERPROFILE, and XDG paths. No global install changed.
+
+Local logs and harnesses: `/tmp/baton-v0.1.2-artifacts-path` contains the
+temporary artifact directory, including asset-verification.log,
+public-install.log, linux-asset-smoke.log, and diagnostic-full.log.
+
 ## v0.1.1 release (2026-10-29)
 
 Tag v0.1.1 on 4627a56 was gated by CI run 40926515453: every runnable

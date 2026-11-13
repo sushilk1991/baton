@@ -4,12 +4,20 @@
 
 Decision: publish the five verified cleanup commits as a patch release.
 The owner explicitly authorized pushing and publishing on GitHub.
-Done: prepare the changelog; no source or workflow changes after the audit.
-Verified: origin/main has no new commits; v0.1.1 is the latest release.
-Next: push main, check hosted CI, tag, inspect the draft assets, publish,
-and verify the public installer in an isolated home.
-The retired macos-13 requirement remains tracked by ordinary CI; the
-separate release workflow gates on available runners.
+Shipped: main pushed; tag v0.1.2 on 9e6cac0; latest GitHub release published
+with five archives, checksums.txt, and baton.rb. Source and workflows have
+not changed after the audit.
+Verified: release workflow 43484749666 passed all four platform gates and
+draft creation. All archives match their checksums and embed v0.1.2,
+revision 9e6cac0, and an unmodified source tree. Native CLI/MCP, Linux
+arm64 archive, public install.sh latest, and go install @v0.1.2 pass.
+Install tests use isolated HOME/XDG paths. See docs/verification.md.
+Gap: Go 1.22 Linux amd64 race tests crash at TestParentJobControl with
+both v0.1.1 and current source (diagnostic run 43484079833). The cause
+remains unproven. The retired macos-13 jobs were cancelled after all
+runnable jobs finished; no checks or runtime source were weakened.
+Next: GitHub release complete. The attached formula is verified; updating
+the separate Homebrew tap was not part of this GitHub-only release.
 
 ## Cleanup audit (2026-11-13)
 
@@ -27,8 +35,8 @@ pass afterward, followed by native/Linux make check and pinned lint.
 Review: Muse found no strict regression in the first four changes and one
 pre-existing .exe matching gap. Seven new assertions reproduced it; the fix
 passes those, custom-argv preservation tests, and all three full gates.
-Next: no remaining audit queue items. Windows runtime and hosted CI remain
-unexercised; local commits only. No release or settings changes were made.
+Next: no remaining audit queue items. Subsequent Windows core, hosted CI,
+and release verification are recorded above. SPEC.md remains unchanged.
 
 ## v0.1.1 released (2026-10-29)
 

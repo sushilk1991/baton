@@ -75,6 +75,6 @@ fix, then green. Order is severity.
 
 ## v0.1.2 release (2026-11-13)
 
-- [ ] Push the cleanup commits, gate the tag on hosted checks, verify all
+- [x] Push the cleanup commits, gate the tag on hosted checks, verify all
   release archive checksums and the native binary, publish v0.1.2, and
   exercise the public installer in an isolated home.
